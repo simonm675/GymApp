@@ -5,7 +5,11 @@ type Exercise = {
   name: string;
   currentWeight: number;
   previousWeight: number | null;
+  bestWeight: number;
   completed: boolean;
+  notes: string;
+  targetSets: number;
+  completedSets: number;
 };
 
 type TrainingPlan = {
@@ -14,10 +18,53 @@ type TrainingPlan = {
   exercises: Exercise[];
 };
 
-const STORAGE_KEY = 'gymapp:v1';
+type HistoryExercise = {
+  name: string;
+  weight: number;
+  completedSets: number;
+  targetSets: number;
+  isPr: boolean;
+};
+
+type TrainingHistoryEntry = {
+  id: string;
+  dateIso: string;
+  planId: string;
+  planName: string;
+  exercises: HistoryExercise[];
+};
+
+const STORAGE_KEY = 'gymapp:v2:plans';
+const HISTORY_KEY = 'gymapp:v2:history';
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function clampWeight(value: number) {
+  return Math.max(0, Math.min(300, value));
+}
+
+function clampInt(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function normalizeExercise(input: Partial<Exercise> & { id: string; name: string }): Exercise {
+  const currentWeight = Number(input.currentWeight ?? 0);
+  const targetSets = clampInt(Number(input.targetSets ?? 3), 1, 12);
+  const completedSets = clampInt(Number(input.completedSets ?? 0), 0, targetSets);
+
+  return {
+    id: input.id,
+    name: input.name,
+    currentWeight,
+    previousWeight: input.previousWeight ?? null,
+    bestWeight: Number(input.bestWeight ?? currentWeight),
+    completed: Boolean(input.completed ?? completedSets >= targetSets),
+    notes: String(input.notes ?? ''),
+    targetSets,
+    completedSets
+  };
 }
 
 function loadPlans(): TrainingPlan[] {
@@ -35,12 +82,25 @@ function loadPlans(): TrainingPlan[] {
     return parsed.map((plan) => ({
       ...plan,
       exercises: Array.isArray(plan.exercises)
-        ? plan.exercises.map((exercise) => ({
-            ...exercise,
-            completed: exercise.completed ?? false
-          }))
+        ? plan.exercises.map((exercise) =>
+            normalizeExercise(exercise as Partial<Exercise> & { id: string; name: string })
+          )
         : []
     }));
+  } catch {
+    return [];
+  }
+}
+
+function loadHistory(): TrainingHistoryEntry[] {
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw) as TrainingHistoryEntry[];
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
@@ -64,18 +124,29 @@ function formatDelta(exercise: Exercise) {
   return `+${deltaKg.toFixed(1)} kg / +${deltaPercent.toFixed(1)}%`;
 }
 
-function clampWeight(value: number) {
-  return Math.max(0, Math.min(300, value));
+function formatTimer(seconds: number) {
+  const m = Math.floor(seconds / 60)
+    .toString()
+    .padStart(2, '0');
+  const s = Math.floor(seconds % 60)
+    .toString()
+    .padStart(2, '0');
+  return `${m}:${s}`;
 }
 
 export default function App() {
   const [plans, setPlans] = useState<TrainingPlan[]>(() => loadPlans());
+  const [history, setHistory] = useState<TrainingHistoryEntry[]>(() => loadHistory());
   const [activePlanId, setActivePlanId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'today' | 'exercises' | 'manage'>('today');
 
   const [planName, setPlanName] = useState('');
   const [exerciseName, setExerciseName] = useState('');
   const [exerciseWeight, setExerciseWeight] = useState('20.0');
+
+  const [restSeconds, setRestSeconds] = useState(90);
+  const [restRunning, setRestRunning] = useState(false);
+
   const [draggingExerciseId, setDraggingExerciseId] = useState<string | null>(null);
   const [dragOverExerciseId, setDragOverExerciseId] = useState<string | null>(null);
 
@@ -92,6 +163,10 @@ export default function App() {
   }, [plans]);
 
   useEffect(() => {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  }, [history]);
+
+  useEffect(() => {
     if (plans.length === 0) {
       setActivePlanId('');
       return;
@@ -102,6 +177,25 @@ export default function App() {
       setActivePlanId(plans[0].id);
     }
   }, [plans, activePlanId]);
+
+  useEffect(() => {
+    if (!restRunning) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setRestSeconds((previous) => {
+        if (previous <= 1) {
+          window.clearInterval(timer);
+          setRestRunning(false);
+          return 0;
+        }
+        return previous - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [restRunning]);
 
   const activePlan = useMemo(
     () => plans.find((plan) => plan.id === activePlanId) ?? null,
@@ -159,12 +253,18 @@ export default function App() {
       return;
     }
 
+    const normalizedWeight = Number(parsedWeight.toFixed(1));
+
     const newExercise: Exercise = {
       id: createId(),
       name,
-      currentWeight: parsedWeight,
+      currentWeight: normalizedWeight,
       previousWeight: null,
-      completed: false
+      bestWeight: normalizedWeight,
+      completed: false,
+      notes: '',
+      targetSets: 3,
+      completedSets: 0
     };
 
     setPlans((previous) =>
@@ -185,6 +285,8 @@ export default function App() {
       return;
     }
 
+    const nextWeight = Number(parsedWeight.toFixed(1));
+
     setPlans((previous) =>
       previous.map((plan) => {
         if (plan.id !== activePlan.id) {
@@ -198,14 +300,15 @@ export default function App() {
               return exercise;
             }
 
-            if (exercise.currentWeight === parsedWeight) {
+            if (exercise.currentWeight === nextWeight) {
               return exercise;
             }
 
             return {
               ...exercise,
               previousWeight: exercise.currentWeight,
-              currentWeight: parsedWeight,
+              currentWeight: nextWeight,
+              bestWeight: Math.max(exercise.bestWeight, nextWeight),
               completed: false
             };
           })
@@ -244,6 +347,7 @@ export default function App() {
               ...exercise,
               previousWeight: exercise.currentWeight,
               currentWeight: nextWeight,
+              bestWeight: Math.max(exercise.bestWeight, nextWeight),
               completed: false
             };
           })
@@ -266,10 +370,101 @@ export default function App() {
         return {
           ...plan,
           exercises: plan.exercises.map((exercise) =>
-            exercise.id === exerciseId ? { ...exercise, completed } : exercise
+            exercise.id === exerciseId
+              ? {
+                  ...exercise,
+                  completed,
+                  completedSets: completed ? exercise.targetSets : 0
+                }
+              : exercise
           )
         };
       })
+    );
+  }
+
+  function setExerciseSets(exerciseId: string, nextCompletedSets: number) {
+    if (!activePlan) {
+      return;
+    }
+
+    setPlans((previous) =>
+      previous.map((plan) => {
+        if (plan.id !== activePlan.id) {
+          return plan;
+        }
+
+        return {
+          ...plan,
+          exercises: plan.exercises.map((exercise) => {
+            if (exercise.id !== exerciseId) {
+              return exercise;
+            }
+
+            const clamped = clampInt(nextCompletedSets, 0, exercise.targetSets);
+            return {
+              ...exercise,
+              completedSets: clamped,
+              completed: clamped >= exercise.targetSets
+            };
+          })
+        };
+      })
+    );
+  }
+
+  function updateExerciseMeta(
+    exerciseId: string,
+    patch: Partial<Pick<Exercise, 'name' | 'notes' | 'targetSets'>>
+  ) {
+    if (!activePlan) {
+      return;
+    }
+
+    setPlans((previous) =>
+      previous.map((plan) => {
+        if (plan.id !== activePlan.id) {
+          return plan;
+        }
+
+        return {
+          ...plan,
+          exercises: plan.exercises.map((exercise) => {
+            if (exercise.id !== exerciseId) {
+              return exercise;
+            }
+
+            const targetSets = patch.targetSets
+              ? clampInt(patch.targetSets, 1, 12)
+              : exercise.targetSets;
+
+            return {
+              ...exercise,
+              ...patch,
+              targetSets,
+              completedSets: clampInt(exercise.completedSets, 0, targetSets),
+              completed: clampInt(exercise.completedSets, 0, targetSets) >= targetSets
+            };
+          })
+        };
+      })
+    );
+  }
+
+  function deleteExercise(exerciseId: string) {
+    if (!activePlan) {
+      return;
+    }
+
+    setPlans((previous) =>
+      previous.map((plan) =>
+        plan.id === activePlan.id
+          ? {
+              ...plan,
+              exercises: plan.exercises.filter((exercise) => exercise.id !== exerciseId)
+            }
+          : plan
+      )
     );
   }
 
@@ -303,6 +498,46 @@ export default function App() {
     );
   }
 
+  function finishTraining() {
+    if (!activePlan || activePlan.exercises.length === 0) {
+      return;
+    }
+
+    const entry: TrainingHistoryEntry = {
+      id: createId(),
+      dateIso: new Date().toISOString(),
+      planId: activePlan.id,
+      planName: activePlan.name,
+      exercises: activePlan.exercises.map((exercise) => ({
+        name: exercise.name,
+        weight: exercise.currentWeight,
+        completedSets: exercise.completedSets,
+        targetSets: exercise.targetSets,
+        isPr:
+          exercise.previousWeight !== null &&
+          exercise.currentWeight >= exercise.bestWeight &&
+          exercise.currentWeight > exercise.previousWeight
+      }))
+    };
+
+    setHistory((previous) => [entry, ...previous].slice(0, 40));
+
+    setPlans((previous) =>
+      previous.map((plan) =>
+        plan.id === activePlan.id
+          ? {
+              ...plan,
+              exercises: plan.exercises.map((exercise) => ({
+                ...exercise,
+                completed: false,
+                completedSets: 0
+              }))
+            }
+          : plan
+      )
+    );
+  }
+
   return (
     <main className="app-shell">
       <section className="phone-frame">
@@ -312,87 +547,76 @@ export default function App() {
 
         <div className="screen-content">
           {activeTab === 'today' ? (
-            <>
-              <section className="section-block ios-group">
-                <h2>Heute</h2>
+            <section className="section-block ios-group">
+              <h2>Heute</h2>
 
-                {plans.length > 0 ? (
-                  <>
-                    <p className="section-intro">Welcher Plan ist heute dran?</p>
-
-                    <div className="plan-picker-grid">
-                      {plans.map((plan) => (
-                        <button
-                          key={plan.id}
-                          type="button"
-                          className={`plan-select-card ${plan.id === activePlanId ? 'active' : ''}`}
-                          onClick={() => setActivePlanId(plan.id)}
-                        >
-                          {plan.name}
-                        </button>
-                      ))}
-                    </div>
-
-                    {activePlan ? (
-                      <>
-                        <article className="hero-card">
-                          <div>
-                            <p className="hero-kicker">Aktiver Plan</p>
-                            <h3>{activePlan.name}</h3>
-                            <p className="hero-meta">
-                              {planStats.completedCount}/{planStats.exerciseCount} Übungen erledigt
-                            </p>
-                          </div>
-                          <button type="button" onClick={() => setActiveTab('exercises')}>
-                            Übungen öffnen
-                          </button>
-                        </article>
-
-                        <div className="stats-grid">
-                          <article className="stat-card">
-                            <span>Übungen</span>
-                            <strong>{planStats.exerciseCount}</strong>
-                          </article>
-                          <article className="stat-card">
-                            <span>Ø Gewicht</span>
-                            <strong>{planStats.avgWeight.toFixed(1)} kg</strong>
-                          </article>
-                          <article className="stat-card">
-                            <span>Steigerungen</span>
-                            <strong>{planStats.progressCount}</strong>
-                          </article>
-                          <article className="stat-card">
-                            <span>Erledigt</span>
-                            <strong>{planStats.completedCount}</strong>
-                          </article>
-                        </div>
-                      </>
-                    ) : null}
-                  </>
-                ) : (
-                  <div className="empty-state">
-                    <p className="empty-text">Erstelle in Verwalten deinen ersten Plan.</p>
-                    <button type="button" onClick={() => setActiveTab('manage')}>
-                      Zu Verwalten
-                    </button>
-                  </div>
-                )}
-              </section>
-
-              {activePlan && planStats.exerciseCount > 0 ? (
-                <section className="section-block ios-group">
-                  <h2>Als Nächstes</h2>
-                  <div className="preview-list">
-                    {activePlan.exercises.slice(0, 3).map((exercise) => (
-                      <article key={exercise.id} className="preview-item">
-                        <span>{exercise.name}</span>
-                        <strong>{exercise.currentWeight.toFixed(1)} kg</strong>
-                      </article>
+              {plans.length > 0 ? (
+                <>
+                  <div className="plan-picker-grid">
+                    {plans.map((plan) => (
+                      <button
+                        key={plan.id}
+                        type="button"
+                        className={`plan-select-card ${plan.id === activePlanId ? 'active' : ''}`}
+                        onClick={() => setActivePlanId(plan.id)}
+                      >
+                        {plan.name}
+                      </button>
                     ))}
                   </div>
-                </section>
-              ) : null}
-            </>
+
+                  {activePlan ? (
+                    <div className="mini-stats-grid">
+                      <article className="stat-card">
+                        <span>Übungen</span>
+                        <strong>{planStats.exerciseCount}</strong>
+                      </article>
+                      <article className="stat-card">
+                        <span>Ø KG</span>
+                        <strong>{planStats.avgWeight.toFixed(1)}</strong>
+                      </article>
+                      <article className="stat-card">
+                        <span>Steigerungen</span>
+                        <strong>{planStats.progressCount}</strong>
+                      </article>
+                    </div>
+                  ) : null}
+
+                  <div className="history-block">
+                    <h3>Verlauf</h3>
+                    {history.length === 0 ? (
+                      <p className="empty-text">Noch kein abgeschlossenes Training.</p>
+                    ) : (
+                      <div className="history-list">
+                        {history.slice(0, 4).map((entry) => (
+                          <article key={entry.id} className="history-item">
+                            <div>
+                              <strong>{entry.planName}</strong>
+                              <p>
+                                {new Date(entry.dateIso).toLocaleDateString('de-DE')} · {entry.exercises.length}{' '}
+                                Übungen
+                              </p>
+                            </div>
+                            <span>
+                              {entry.exercises.filter((exercise) => exercise.isPr).length > 0
+                                ? `${entry.exercises.filter((exercise) => exercise.isPr).length} PR`
+                                : '—'}
+                            </span>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="empty-state">
+                  <p className="empty-text">Erstelle in Verwalten deinen ersten Plan.</p>
+                  <button type="button" onClick={() => setActiveTab('manage')}>
+                    Zu Verwalten
+                  </button>
+                </div>
+              )}
+            </section>
           ) : null}
 
           {activeTab === 'exercises' ? (
@@ -417,14 +641,33 @@ export default function App() {
                     </select>
                   </div>
 
+                  <div className="rest-timer">
+                    <p>Rest Timer</p>
+                    <strong>{formatTimer(restSeconds)}</strong>
+                    <div className="timer-actions">
+                      <button type="button" className="secondary-btn" onClick={() => setRestSeconds(90)}>
+                        90s
+                      </button>
+                      <button type="button" className="secondary-btn" onClick={() => setRestSeconds((s) => s + 30)}>
+                        +30s
+                      </button>
+                      <button type="button" onClick={() => setRestRunning((running) => !running)}>
+                        {restRunning ? 'Pause' : 'Start'}
+                      </button>
+                    </div>
+                  </div>
+
                   <p className="plan-hint">
                     Fortschritt: {planStats.completedCount}/{planStats.exerciseCount} erledigt
                   </p>
-                  <p className="plan-hint">Tipp: Ziehe Karten, um die Reihenfolge zu ändern.</p>
 
                   <div className="exercise-list">
                     {activePlan.exercises.map((exercise) => {
                       const deltaText = formatDelta(exercise);
+                      const isPr =
+                        exercise.previousWeight !== null &&
+                        exercise.currentWeight >= exercise.bestWeight &&
+                        exercise.currentWeight > exercise.previousWeight;
 
                       return (
                         <article
@@ -454,10 +697,16 @@ export default function App() {
                           } ${dragOverExerciseId === exercise.id ? 'drag-over' : ''}`}
                         >
                           <div>
-                            <p className="drag-hint">⋮⋮ ziehen zum sortieren</p>
+                            <p className="drag-hint">⋮⋮ sortieren</p>
                             <h3>{exercise.name}</h3>
                             <p className="weight-main">{exercise.currentWeight.toFixed(1)} kg</p>
-                            {deltaText ? <small className="delta-badge">{deltaText}</small> : null}
+                            <div className="badge-row">
+                              {deltaText ? <small className="delta-badge">{deltaText}</small> : null}
+                              {isPr ? <small className="pr-badge">PR</small> : null}
+                            </div>
+                            {exercise.notes.trim() ? (
+                              <p className="exercise-note">{exercise.notes}</p>
+                            ) : null}
                           </div>
 
                           <div className="inline-update">
@@ -492,6 +741,26 @@ export default function App() {
                             </button>
                           </div>
 
+                          <div className="sets-row">
+                            <button
+                              type="button"
+                              className="secondary-btn"
+                              onClick={() => setExerciseSets(exercise.id, exercise.completedSets - 1)}
+                            >
+                              −
+                            </button>
+                            <span>
+                              Sätze {exercise.completedSets}/{exercise.targetSets}
+                            </span>
+                            <button
+                              type="button"
+                              className="secondary-btn"
+                              onClick={() => setExerciseSets(exercise.id, exercise.completedSets + 1)}
+                            >
+                              +
+                            </button>
+                          </div>
+
                           <button
                             type="button"
                             className="done-btn"
@@ -509,6 +778,12 @@ export default function App() {
                       </p>
                     ) : null}
                   </div>
+
+                  {activePlan.exercises.length > 0 ? (
+                    <button type="button" className="finish-btn" onClick={finishTraining}>
+                      Training abschließen
+                    </button>
+                  ) : null}
                 </>
               ) : (
                 <p className="empty-text">
@@ -572,8 +847,57 @@ export default function App() {
                           </option>
                         ))}
                       </select>
-                      <button type="submit">Übung hinzufügen</button>
+                      <button type="submit">Hinzufügen</button>
                     </form>
+
+                    <div className="manage-exercise-list">
+                      {activePlan.exercises.map((exercise) => (
+                        <article key={exercise.id} className="manage-card">
+                          <input
+                            value={exercise.name}
+                            onChange={(event) =>
+                              updateExerciseMeta(exercise.id, { name: event.target.value })
+                            }
+                            aria-label={`Name für ${exercise.name}`}
+                          />
+
+                          <textarea
+                            value={exercise.notes}
+                            onChange={(event) =>
+                              updateExerciseMeta(exercise.id, { notes: event.target.value })
+                            }
+                            rows={2}
+                            placeholder="Notiz zur Übung"
+                            aria-label={`Notiz für ${exercise.name}`}
+                          />
+
+                          <div className="manage-row">
+                            <label>Sätze</label>
+                            <select
+                              value={String(exercise.targetSets)}
+                              onChange={(event) =>
+                                updateExerciseMeta(exercise.id, {
+                                  targetSets: Number.parseInt(event.target.value, 10)
+                                })
+                              }
+                              aria-label={`Satzanzahl für ${exercise.name}`}
+                            >
+                              {Array.from({ length: 10 }).map((_, index) => {
+                                const value = index + 1;
+                                return (
+                                  <option key={value} value={value}>
+                                    {value} Sätze
+                                  </option>
+                                );
+                              })}
+                            </select>
+                            <button type="button" className="danger-btn" onClick={() => deleteExercise(exercise.id)}>
+                              Löschen
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
                   </>
                 ) : (
                   <p className="empty-text">Lege zuerst einen Plan an, dann Übungen hinzufügen.</p>

@@ -33,6 +33,7 @@ body {
 
 input,
 select,
+textarea,
 button {
   font: inherit;
 }
@@ -92,10 +93,17 @@ button {
   text-transform: uppercase;
 }
 
-.section-intro {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.92rem;
+.ios-group {
+  background: var(--card);
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  padding: 13px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 6px 16px rgba(16, 18, 24, 0.06),
+    0 20px 34px rgba(16, 18, 24, 0.05);
+  backdrop-filter: saturate(160%) blur(18px);
+  -webkit-backdrop-filter: saturate(160%) blur(18px);
 }
 
 .plan-picker-grid {
@@ -119,46 +127,11 @@ button {
   background: linear-gradient(180deg, var(--accent), var(--accent-strong));
 }
 
-.hero-card {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  border-radius: 16px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--accent) 10%, var(--surface-strong)) 0%,
-    var(--surface-strong) 100%
-  );
-}
-
-.hero-card h3 {
-  margin: 2px 0 0;
-  font-size: 1.25rem;
-  letter-spacing: -0.02em;
-}
-
-.hero-kicker {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.hero-meta {
-  margin: 4px 0 0;
-  color: var(--muted);
-  font-size: 0.92rem;
-}
-
-.stats-grid {
+.mini-stats-grid {
   display: grid;
   gap: 8px;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 4px;
 }
 
 .stat-card {
@@ -180,17 +153,47 @@ button {
   letter-spacing: -0.01em;
 }
 
-.ios-group {
-  background: var(--card);
-  border-radius: 20px;
+.history-block {
+  margin-top: 6px;
+  display: grid;
+  gap: 8px;
+}
+
+.history-block h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.history-list {
+  display: grid;
+  gap: 8px;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
   border: 1px solid var(--line);
-  padding: 13px;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    0 6px 16px rgba(16, 18, 24, 0.06),
-    0 20px 34px rgba(16, 18, 24, 0.05);
-  backdrop-filter: saturate(160%) blur(18px);
-  -webkit-backdrop-filter: saturate(160%) blur(18px);
+  border-radius: 12px;
+  background: var(--surface-strong);
+  padding: 10px 12px;
+}
+
+.history-item strong {
+  font-size: 0.92rem;
+}
+
+.history-item p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.history-item span {
+  color: color-mix(in srgb, var(--accent) 84%, #8a4900);
+  font-weight: 650;
+  font-size: 0.82rem;
 }
 
 .current-plan-row {
@@ -220,30 +223,6 @@ button {
   gap: 10px;
 }
 
-
-.preview-list {
-  display: grid;
-  gap: 8px;
-}
-
-.preview-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  border-radius: 13px;
-  border: 1px solid var(--line);
-  background: var(--surface-strong);
-  padding: 10px 12px;
-}
-
-.preview-item span {
-  font-weight: 550;
-}
-
-.preview-item strong {
-  color: color-mix(in srgb, var(--accent) 84%, #8a4900);
-}
-
 .form-row,
 .form-grid {
   display: grid;
@@ -259,7 +238,8 @@ button {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-height: 46px;
   border-radius: 13px;
@@ -271,17 +251,24 @@ select {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
+textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
 select {
   appearance: menulist;
   -webkit-appearance: menulist;
 }
 
-input::placeholder {
+input::placeholder,
+textarea::placeholder {
   color: #8d8d93;
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: color-mix(in srgb, var(--accent) 65%, #ffffff);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 24%, transparent);
 }
@@ -306,6 +293,51 @@ button:active {
     0 3px 8px color-mix(in srgb, var(--accent) 24%, transparent);
 }
 
+.secondary-btn {
+  color: var(--text);
+  border-color: var(--line);
+  background: color-mix(in srgb, var(--surface-strong) 88%, transparent);
+  box-shadow: none;
+  min-height: 40px;
+}
+
+.danger-btn {
+  color: #fff;
+  border-color: rgba(210, 68, 52, 0.6);
+  background: linear-gradient(180deg, #ef6353, #d94a3a);
+  box-shadow: none;
+  min-height: 40px;
+}
+
+.rest-timer {
+  margin-top: 2px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-strong);
+  padding: 10px 12px;
+  display: grid;
+  gap: 6px;
+}
+
+.rest-timer p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rest-timer strong {
+  font-size: 1.4rem;
+  letter-spacing: 0.02em;
+}
+
+.timer-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
 .exercise-list {
   margin-top: 6px;
   display: grid;
@@ -323,6 +355,15 @@ button:active {
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
+.exercise-card.completed {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 10%, var(--card-solid)),
+    color-mix(in srgb, var(--accent) 4%, var(--card-solid))
+  );
+}
+
 .exercise-card.dragging {
   opacity: 0.45;
 }
@@ -337,16 +378,6 @@ button:active {
   color: var(--muted);
   font-size: 0.74rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.exercise-card.completed {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent) 10%, var(--card-solid)),
-    color-mix(in srgb, var(--accent) 4%, var(--card-solid))
-  );
 }
 
 .exercise-card h3 {
@@ -366,27 +397,37 @@ button:active {
   letter-spacing: -0.01em;
 }
 
-.exercise-card small {
-  display: inline-block;
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
   margin-top: 6px;
-  color: color-mix(in srgb, var(--accent) 82%, #905300);
-  font-weight: 620;
+}
+
+.delta-badge,
+.pr-badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 650;
 }
 
 .delta-badge {
-  padding: 3px 9px;
-  border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
   background: color-mix(in srgb, var(--accent) 12%, #ffffff);
+  color: color-mix(in srgb, var(--accent) 82%, #905300);
 }
 
-.done-btn {
-  min-height: 38px;
-  border-radius: 10px;
-  color: var(--accent-strong);
-  border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
-  background: color-mix(in srgb, var(--accent) 12%, #ffffff);
-  box-shadow: none;
+.pr-badge {
+  border: 1px solid rgba(18, 148, 84, 0.35);
+  background: rgba(18, 148, 84, 0.14);
+  color: #128b4f;
+}
+
+.exercise-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 .inline-update {
@@ -411,8 +452,63 @@ button:active {
   background: color-mix(in srgb, var(--accent) 22%, #ffffff);
 }
 
+.sets-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.sets-row span {
+  text-align: center;
+  font-size: 0.86rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.done-btn {
+  min-height: 38px;
+  border-radius: 10px;
+  color: var(--accent-strong);
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, #ffffff);
+  box-shadow: none;
+}
+
+.finish-btn {
+  margin-top: 6px;
+}
+
 .manage-block {
   margin-bottom: 10px;
+}
+
+.manage-exercise-list {
+  margin-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.manage-card {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+}
+
+.manage-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.manage-row label {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .tabbar {
@@ -434,7 +530,6 @@ button:active {
 
 .tab-item {
   display: flex;
-  flex-direction: row;
   justify-content: center;
   align-items: center;
   gap: 6px;
@@ -447,11 +542,6 @@ button:active {
   border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
   padding: 8px 10px;
   box-shadow: none;
-}
-
-.tab-icon {
-  font-size: 1rem;
-  line-height: 1;
 }
 
 .tab-item.active {
@@ -468,15 +558,19 @@ button:active {
   .form-row,
   .form-grid,
   .exercise-card,
-  .hero-card,
-  .stats-grid,
-  .plan-picker-grid {
+  .plan-picker-grid,
+  .mini-stats-grid,
+  .manage-row {
     grid-template-columns: 1fr;
   }
 
   .inline-update {
     grid-template-columns: 1fr 1fr 1fr;
     min-width: 100%;
+  }
+
+  .timer-actions {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -503,10 +597,6 @@ button:active {
       var(--bg);
   }
 
-  input::placeholder {
-    color: #8d8d93;
-  }
-
   .ios-group {
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.08),
@@ -515,17 +605,25 @@ button:active {
   }
 
   .stat-card,
-  .preview-item,
-  .hero-card {
+  .history-item,
+  .rest-timer,
+  .manage-card,
+  .plan-select-card {
     background: #1c1c1f;
     border-color: rgba(84, 84, 88, 0.42);
+    color: #f5f5f7;
   }
 
-  .exercise-card p {
-    color: #ececf1;
+  .exercise-card p,
+  .history-item p,
+  .exercise-note,
+  .sets-row span,
+  .manage-row label {
+    color: #b6b6bc;
   }
 
-  .adjust-button {
+  .adjust-button,
+  .done-btn {
     color: #ffb17f;
     border-color: rgba(255, 140, 58, 0.45);
     background: rgba(255, 140, 58, 0.18);
@@ -536,10 +634,16 @@ button:active {
     border-color: rgba(255, 140, 58, 0.4);
   }
 
-  .done-btn {
-    color: #ffb17f;
-    border-color: rgba(255, 140, 58, 0.45);
-    background: rgba(255, 140, 58, 0.18);
+  .pr-badge {
+    background: rgba(34, 199, 112, 0.18);
+    border-color: rgba(34, 199, 112, 0.4);
+    color: #62d89f;
+  }
+
+  .secondary-btn {
+    color: #f3f3f7;
+    border-color: rgba(84, 84, 88, 0.5);
+    background: rgba(45, 45, 49, 0.85);
   }
 
   .tab-item {
@@ -548,13 +652,11 @@ button:active {
     border-color: rgba(84, 84, 88, 0.44);
   }
 
-  .plan-select-card {
+  input,
+  select,
+  textarea {
+    background: #2c2c2e;
     color: #f5f5f7;
-    background: rgba(34, 34, 37, 0.72);
-    border-color: rgba(84, 84, 88, 0.44);
-  }
-
-  .tab-item.active {
-    color: #fff;
+    border-color: rgba(84, 84, 88, 0.5);
   }
 }
