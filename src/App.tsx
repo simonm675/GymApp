@@ -180,12 +180,12 @@ export default function App() {
   return (
     <main className="app-shell">
       <section className="phone-frame">
-        <header className="glass-card topbar">
+        <header className="topbar">
           <h1>GymApp</h1>
-          <p>Dein Trainingsplan, direkt wie eine iPhone App.</p>
+          <p>Trainingspläne und Gewichte, schnell im Gym.</p>
         </header>
 
-        <section className="glass-card section-block">
+        <section className="section-block ios-group">
           <h2>Trainingsplan erstellen</h2>
           <form onSubmit={createPlan} className="form-row">
             <input
@@ -211,7 +211,7 @@ export default function App() {
           </div>
         </section>
 
-        <section className="glass-card section-block">
+        <section className="section-block ios-group">
           <h2>Übungen & Gewichte</h2>
 
           {activePlan ? (

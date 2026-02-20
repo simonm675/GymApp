@@ -1,7 +1,9 @@
 :root {
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
-  color: #f8fbff;
-  background: #0b1020;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif;
+  color: #111111;
+  background: #f2f2f7;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -11,11 +13,7 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 20% 20%, rgba(130, 177, 255, 0.4), transparent 45%),
-    radial-gradient(circle at 90% 10%, rgba(106, 122, 255, 0.35), transparent 35%),
-    radial-gradient(circle at 50% 100%, rgba(64, 255, 214, 0.2), transparent 45%),
-    #080d1d;
+  background: #f2f2f7;
 }
 
 input,
@@ -26,7 +24,7 @@ button {
 
 .app-shell {
   min-height: 100vh;
-  padding: max(16px, env(safe-area-inset-top)) 12px max(18px, env(safe-area-inset-bottom));
+  padding: 0 12px max(16px, env(safe-area-inset-bottom));
   display: flex;
   justify-content: center;
 }
@@ -37,41 +35,53 @@ button {
   gap: 14px;
 }
 
-.glass-card {
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08));
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.45),
-    0 20px 36px rgba(5, 8, 19, 0.42);
-}
-
 .topbar {
-  padding: 18px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  margin: 0 -12px;
+  padding: max(14px, env(safe-area-inset-top)) 16px 10px;
+  background: rgba(242, 242, 247, 0.8);
+  border-bottom: 1px solid rgba(60, 60, 67, 0.18);
+  backdrop-filter: saturate(180%) blur(22px);
+  -webkit-backdrop-filter: saturate(180%) blur(22px);
 }
 
 .topbar h1 {
   margin: 0;
-  font-size: 1.6rem;
-  letter-spacing: 0.2px;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
 .topbar p {
   margin: 6px 0 0;
-  color: rgba(246, 252, 255, 0.86);
-  font-size: 0.92rem;
+  color: #6d6d72;
+  font-size: 0.95rem;
 }
 
 .section-block {
-  padding: 16px;
+  display: grid;
+  gap: 10px;
 }
 
 .section-block h2 {
-  margin: 0 0 12px;
-  font-size: 1rem;
-  font-weight: 700;
+  margin: 0;
+  padding: 0 6px;
+  color: #6d6d72;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ios-group {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid rgba(60, 60, 67, 0.1);
+  padding: 12px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .form-row,
@@ -89,61 +99,70 @@ button {
   grid-template-columns: 1fr 1fr auto;
 }
 
-input {
+input,
 select {
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(14, 20, 38, 0.55);
-  color: #f7fbff;
-  border-radius: 14px;
+  border: 1px solid rgba(60, 60, 67, 0.2);
+  background: #f8f8fb;
+  color: #111111;
+  border-radius: 12px;
   padding: 10px 12px;
   outline: none;
-  transition: border-color 0.15s ease;
+  min-height: 42px;
+}
+
+select {
+  appearance: menulist;
+  -webkit-appearance: menulist;
 }
 
 input::placeholder {
-  color: rgba(241, 247, 255, 0.62);
+  color: #8a8a90;
 }
 
 input:focus,
 select:focus {
-  border-color: rgba(145, 190, 255, 0.95);
+  border-color: #0a84ff;
+  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
 }
 
 button {
   border: 0;
-  border-radius: 14px;
-  padding: 10px 12px;
+  border-radius: 12px;
+  padding: 10px 14px;
+  min-height: 42px;
   color: #ffffff;
-  background: linear-gradient(145deg, rgba(110, 185, 255, 0.95), rgba(87, 123, 255, 0.92));
+  background: #0a84ff;
   font-weight: 600;
-  letter-spacing: 0.1px;
 }
 
 .plan-list {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 .plan-chip {
-  background: rgba(11, 20, 41, 0.68);
-  border: 1px solid rgba(255, 255, 255, 0.26);
+  background: #f2f2f7;
+  border: 1px solid rgba(60, 60, 67, 0.2);
   padding: 8px 12px;
   border-radius: 999px;
-  color: #eaf5ff;
+  color: #1f1f22;
+  white-space: nowrap;
 }
 
 .plan-chip.active {
-  background: linear-gradient(145deg, rgba(115, 202, 255, 0.95), rgba(107, 126, 255, 0.95));
-  color: white;
+  background: #0a84ff;
+  border-color: #0a84ff;
+  color: #ffffff;
 }
 
 .exercise-list {
-  margin-top: 12px;
+  margin-top: 8px;
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .exercise-card {
@@ -151,48 +170,98 @@ button {
   grid-template-columns: 1fr auto;
   gap: 10px;
   padding: 12px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(9, 16, 31, 0.52);
+  border-radius: 14px;
+  border: 1px solid rgba(60, 60, 67, 0.14);
+  background: #ffffff;
 }
 
 .exercise-card h3 {
   margin: 0;
   font-size: 1rem;
+  font-weight: 600;
 }
 
 .exercise-card p {
   margin: 4px 0 0;
-  color: rgba(246, 252, 255, 0.9);
+  color: #2e2e33;
 }
 
 .exercise-card small {
   display: inline-block;
   margin-top: 6px;
-  color: #8fffd9;
+  color: #0f9d58;
   font-weight: 600;
 }
 
 .inline-update {
-  grid-template-columns: 1fr auto;
   align-items: center;
-}
-
-.inline-update input {
-  min-width: 128px;
+  min-width: 132px;
 }
 
 .empty-text {
   margin: 8px 0 0;
-  color: rgba(241, 248, 255, 0.78);
-  font-size: 0.92rem;
+  color: #6d6d72;
+  font-size: 0.93rem;
 }
 
 @media (max-width: 520px) {
   .form-row,
   .form-grid,
-  .exercise-card,
-  .inline-update {
+  .exercise-card {
     grid-template-columns: 1fr;
+  }
+
+  .inline-update {
+    min-width: 100%;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #f5f5f7;
+    background: #000000;
+  }
+
+  body {
+    background: #000000;
+  }
+
+  .topbar {
+    background: rgba(28, 28, 30, 0.82);
+    border-bottom-color: rgba(84, 84, 88, 0.45);
+  }
+
+  .topbar p,
+  .section-block h2,
+  .empty-text {
+    color: #98989d;
+  }
+
+  .ios-group,
+  .exercise-card {
+    background: #1c1c1e;
+    border-color: rgba(84, 84, 88, 0.42);
+  }
+
+  input,
+  select,
+  .plan-chip {
+    background: #2c2c2e;
+    color: #f5f5f7;
+    border-color: rgba(84, 84, 88, 0.5);
+  }
+
+  input::placeholder {
+    color: #8e8e93;
+  }
+
+  .plan-chip.active {
+    background: #0a84ff;
+    border-color: #0a84ff;
+    color: #ffffff;
+  }
+
+  .exercise-card p {
+    color: #ececf0;
   }
 }
