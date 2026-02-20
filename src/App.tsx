@@ -97,6 +97,24 @@ export default function App() {
     [plans, activePlanId]
   );
 
+  const planStats = useMemo(() => {
+    if (!activePlan) {
+      return { exerciseCount: 0, avgWeight: 0, progressCount: 0 };
+    }
+
+    const exerciseCount = activePlan.exercises.length;
+    const totalWeight = activePlan.exercises.reduce(
+      (sum, exercise) => sum + exercise.currentWeight,
+      0
+    );
+    const avgWeight = exerciseCount > 0 ? totalWeight / exerciseCount : 0;
+    const progressCount = activePlan.exercises.filter(
+      (exercise) => exercise.previousWeight !== null && exercise.currentWeight > exercise.previousWeight
+    ).length;
+
+    return { exerciseCount, avgWeight, progressCount };
+  }, [activePlan]);
+
   function createPlan(event: FormEvent) {
     event.preventDefault();
 
@@ -224,20 +242,89 @@ export default function App() {
       <section className="phone-frame">
         <header className="topbar">
           <h1>GymApp</h1>
-          <p>Schnell nachschauen und Gewicht direkt anpassen.</p>
         </header>
 
         <div className="screen-content">
           {activeTab === 'today' ? (
+            <>
+              <section className="section-block ios-group">
+                <h2>Heute</h2>
+
+                {activePlan ? (
+                  <>
+                    <article className="hero-card">
+                      <div>
+                        <p className="hero-kicker">Aktiver Plan</p>
+                        <h3>{activePlan.name}</h3>
+                        <p className="hero-meta">{planStats.exerciseCount} Übungen bereit</p>
+                      </div>
+                      <button type="button" onClick={() => setActiveTab('exercises')}>
+                        Training starten
+                      </button>
+                    </article>
+
+                    <div className="stats-grid">
+                      <article className="stat-card">
+                        <span>Übungen</span>
+                        <strong>{planStats.exerciseCount}</strong>
+                      </article>
+                      <article className="stat-card">
+                        <span>Ø Gewicht</span>
+                        <strong>{planStats.avgWeight.toFixed(1)} kg</strong>
+                      </article>
+                      <article className="stat-card">
+                        <span>Steigerungen</span>
+                        <strong>{planStats.progressCount}</strong>
+                      </article>
+                    </div>
+
+                    <div className="current-plan-row">
+                      <label htmlFor="active-plan">Plan wechseln</label>
+                      <select
+                        id="active-plan"
+                        value={activePlanId}
+                        onChange={(event) => setActivePlanId(event.target.value)}
+                        aria-label="Aktiver Trainingsplan"
+                      >
+                        {plans.map((plan) => (
+                          <option key={plan.id} value={plan.id}>
+                            {plan.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                ) : (
+                  <p className="empty-text">Erstelle in Verwalten deinen ersten Plan.</p>
+                )}
+              </section>
+
+              {activePlan && planStats.exerciseCount > 0 ? (
+                <section className="section-block ios-group">
+                  <h2>Als Nächstes</h2>
+                  <div className="preview-list">
+                    {activePlan.exercises.slice(0, 3).map((exercise) => (
+                      <article key={exercise.id} className="preview-item">
+                        <span>{exercise.name}</span>
+                        <strong>{exercise.currentWeight.toFixed(1)} kg</strong>
+                      </article>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+            </>
+          ) : null}
+
+          {activeTab === 'exercises' ? (
             <section className="section-block ios-group">
-              <h2>Heute</h2>
+              <h2>Übung & Gewicht</h2>
 
               {activePlan ? (
                 <>
-                  <div className="current-plan-row">
-                    <label htmlFor="active-plan">Plan</label>
+                  <div className="current-plan-row compact">
+                    <label htmlFor="exercise-plan">Plan</label>
                     <select
-                      id="active-plan"
+                      id="exercise-plan"
                       value={activePlanId}
                       onChange={(event) => setActivePlanId(event.target.value)}
                       aria-label="Aktiver Trainingsplan"
@@ -250,22 +337,6 @@ export default function App() {
                     </select>
                   </div>
 
-                  <p className="plan-hint">
-                    {activePlan.exercises.length} Übungen in diesem Plan
-                  </p>
-                </>
-              ) : (
-                <p className="empty-text">Erstelle unten zuerst einen Plan.</p>
-              )}
-            </section>
-          ) : null}
-
-          {activeTab === 'exercises' ? (
-            <section className="section-block ios-group">
-              <h2>Übung & Gewicht</h2>
-
-              {activePlan ? (
-                <>
                   <div className="exercise-list">
                     {activePlan.exercises.map((exercise) => {
                       const deltaText = formatDelta(exercise);
@@ -275,7 +346,7 @@ export default function App() {
                           <div>
                             <h3>{exercise.name}</h3>
                             <p className="weight-main">{exercise.currentWeight.toFixed(1)} kg</p>
-                            {deltaText ? <small>{deltaText}</small> : null}
+                            {deltaText ? <small className="delta-badge">{deltaText}</small> : null}
                           </div>
 
                           <div className="inline-update">
@@ -329,42 +400,67 @@ export default function App() {
           ) : null}
 
           {activeTab === 'manage' ? (
-            <section className="section-block ios-group manage-block">
-              <h2>Verwalten</h2>
-
-              <form onSubmit={createPlan} className="form-row">
-                <input
-                  value={planName}
-                  onChange={(event) => setPlanName(event.target.value)}
-                  placeholder="Neuer Plan (z. B. Push Day)"
-                  aria-label="Trainingsplan Name"
-                />
-                <button type="submit">Plan</button>
-              </form>
-
-              {activePlan ? (
-                <form onSubmit={addExercise} className="form-grid">
+            <>
+              <section className="section-block ios-group manage-block">
+                <h2>Verwalten</h2>
+                <form onSubmit={createPlan} className="form-row">
                   <input
-                    value={exerciseName}
-                    onChange={(event) => setExerciseName(event.target.value)}
-                    placeholder="Neue Übung"
-                    aria-label="Übungsname"
+                    value={planName}
+                    onChange={(event) => setPlanName(event.target.value)}
+                    placeholder="Neuer Plan (z. B. Push Day)"
+                    aria-label="Trainingsplan Name"
                   />
-                  <select
-                    value={exerciseWeight}
-                    onChange={(event) => setExerciseWeight(event.target.value)}
-                    aria-label="Startgewicht"
-                  >
-                    {weightOptions.map((option) => (
-                      <option key={option} value={option}>
-                        {option} kg
-                      </option>
-                    ))}
-                  </select>
-                  <button type="submit">Übung</button>
+                  <button type="submit">Plan</button>
                 </form>
-              ) : null}
-            </section>
+              </section>
+
+              <section className="section-block ios-group">
+                <h2>Übung hinzufügen</h2>
+
+                {activePlan ? (
+                  <>
+                    <div className="current-plan-row compact">
+                      <label htmlFor="manage-plan">Plan</label>
+                      <select
+                        id="manage-plan"
+                        value={activePlanId}
+                        onChange={(event) => setActivePlanId(event.target.value)}
+                        aria-label="Aktiver Trainingsplan"
+                      >
+                        {plans.map((plan) => (
+                          <option key={plan.id} value={plan.id}>
+                            {plan.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <form onSubmit={addExercise} className="form-grid">
+                      <input
+                        value={exerciseName}
+                        onChange={(event) => setExerciseName(event.target.value)}
+                        placeholder="Neue Übung"
+                        aria-label="Übungsname"
+                      />
+                      <select
+                        value={exerciseWeight}
+                        onChange={(event) => setExerciseWeight(event.target.value)}
+                        aria-label="Startgewicht"
+                      >
+                        {weightOptions.map((option) => (
+                          <option key={option} value={option}>
+                            {option} kg
+                          </option>
+                        ))}
+                      </select>
+                      <button type="submit">Übung</button>
+                    </form>
+                  </>
+                ) : (
+                  <p className="empty-text">Lege zuerst einen Plan an, dann Übungen hinzufügen.</p>
+                )}
+              </section>
+            </>
           ) : null}
         </div>
 
@@ -374,6 +470,7 @@ export default function App() {
             className={`tab-item ${activeTab === 'today' ? 'active' : ''}`}
             onClick={() => setActiveTab('today')}
           >
+            <span className="tab-icon">⌂</span>
             Heute
           </button>
           <button
@@ -381,6 +478,7 @@ export default function App() {
             className={`tab-item ${activeTab === 'exercises' ? 'active' : ''}`}
             onClick={() => setActiveTab('exercises')}
           >
+            <span className="tab-icon">🏋</span>
             Übungen
           </button>
           <button
@@ -388,6 +486,7 @@ export default function App() {
             className={`tab-item ${activeTab === 'manage' ? 'active' : ''}`}
             onClick={() => setActiveTab('manage')}
           >
+            <span className="tab-icon">⚙</span>
             Verwalten
           </button>
         </nav>
