@@ -55,6 +55,10 @@ function formatDelta(exercise: Exercise) {
   return `+${deltaKg.toFixed(1)} kg / +${deltaPercent.toFixed(1)}%`;
 }
 
+function clampWeight(value: number) {
+  return Math.max(0, Math.min(300, value));
+}
+
 export default function App() {
   const [plans, setPlans] = useState<TrainingPlan[]>(() => loadPlans());
   const [activePlanId, setActivePlanId] = useState<string>('');
@@ -177,66 +181,86 @@ export default function App() {
     );
   }
 
+  function changeExerciseByDelta(exerciseId: string, delta: number) {
+    if (!activePlan) {
+      return;
+    }
+
+    setPlans((previous) =>
+      previous.map((plan) => {
+        if (plan.id !== activePlan.id) {
+          return plan;
+        }
+
+        return {
+          ...plan,
+          exercises: plan.exercises.map((exercise) => {
+            if (exercise.id !== exerciseId) {
+              return exercise;
+            }
+
+            const nextWeight = clampWeight(
+              Number((exercise.currentWeight + delta).toFixed(1))
+            );
+
+            if (nextWeight === exercise.currentWeight) {
+              return exercise;
+            }
+
+            return {
+              ...exercise,
+              previousWeight: exercise.currentWeight,
+              currentWeight: nextWeight
+            };
+          })
+        };
+      })
+    );
+  }
+
   return (
     <main className="app-shell">
       <section className="phone-frame">
         <header className="topbar">
           <h1>GymApp</h1>
-          <p>Trainingspläne und Gewichte, schnell im Gym.</p>
+          <p>Schnell nachschauen und Gewicht direkt anpassen.</p>
         </header>
 
         <section className="section-block ios-group">
-          <h2>Trainingsplan erstellen</h2>
-          <form onSubmit={createPlan} className="form-row">
-            <input
-              value={planName}
-              onChange={(event) => setPlanName(event.target.value)}
-              placeholder="z. B. Push Day"
-              aria-label="Trainingsplan Name"
-            />
-            <button type="submit">Plan speichern</button>
-          </form>
-
-          <div className="plan-list">
-            {plans.map((plan) => (
-              <button
-                key={plan.id}
-                className={`plan-chip ${plan.id === activePlanId ? 'active' : ''}`}
-                onClick={() => setActivePlanId(plan.id)}
-                type="button"
-              >
-                {plan.name}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="section-block ios-group">
-          <h2>Übungen & Gewichte</h2>
+          <h2>Heute</h2>
 
           {activePlan ? (
             <>
-              <form onSubmit={addExercise} className="form-grid">
-                <input
-                  value={exerciseName}
-                  onChange={(event) => setExerciseName(event.target.value)}
-                  placeholder="Übung"
-                  aria-label="Übungsname"
-                />
+              <div className="current-plan-row">
+                <label htmlFor="active-plan">Plan</label>
                 <select
-                  value={exerciseWeight}
-                  onChange={(event) => setExerciseWeight(event.target.value)}
-                  aria-label="Gewicht"
+                  id="active-plan"
+                  value={activePlanId}
+                  onChange={(event) => setActivePlanId(event.target.value)}
+                  aria-label="Aktiver Trainingsplan"
                 >
-                  {weightOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option} kg
+                  {plans.map((plan) => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.name}
                     </option>
                   ))}
                 </select>
-                <button type="submit">Übung hinzufügen</button>
-              </form>
+              </div>
 
+              <p className="plan-hint">
+                {activePlan.exercises.length} Übungen in diesem Plan
+              </p>
+            </>
+          ) : (
+            <p className="empty-text">Erstelle unten zuerst einen Plan.</p>
+          )}
+        </section>
+
+        <section className="section-block ios-group">
+          <h2>Übung & Gewicht</h2>
+
+          {activePlan ? (
+            <>
               <div className="exercise-list">
                 {activePlan.exercises.map((exercise) => {
                   const deltaText = formatDelta(exercise);
@@ -245,11 +269,19 @@ export default function App() {
                     <article key={exercise.id} className="exercise-card">
                       <div>
                         <h3>{exercise.name}</h3>
-                        <p>{exercise.currentWeight.toFixed(1)} kg</p>
+                        <p className="weight-main">{exercise.currentWeight.toFixed(1)} kg</p>
                         {deltaText ? <small>{deltaText}</small> : null}
                       </div>
 
                       <div className="inline-update">
+                        <button
+                          type="button"
+                          className="adjust-button"
+                          onClick={() => changeExerciseByDelta(exercise.id, -2.5)}
+                          aria-label={`${exercise.name} um 2.5 kg reduzieren`}
+                        >
+                          −2.5
+                        </button>
                         <select
                           value={exercise.currentWeight.toFixed(1)}
                           onChange={(event) =>
@@ -263,6 +295,14 @@ export default function App() {
                             </option>
                           ))}
                         </select>
+                        <button
+                          type="button"
+                          className="adjust-button"
+                          onClick={() => changeExerciseByDelta(exercise.id, 2.5)}
+                          aria-label={`${exercise.name} um 2.5 kg erhöhen`}
+                        >
+                          +2.5
+                        </button>
                       </div>
                     </article>
                   );
@@ -277,9 +317,46 @@ export default function App() {
             </>
           ) : (
             <p className="empty-text">
-              Erstelle zuerst einen Trainingsplan, dann kannst du Übungen und Gewichte eintragen.
+              Sobald ein Plan da ist, siehst du hier direkt alle Übungen und Gewichte.
             </p>
           )}
+        </section>
+
+        <section className="section-block ios-group manage-block">
+          <h2>Verwalten</h2>
+
+          <form onSubmit={createPlan} className="form-row">
+            <input
+              value={planName}
+              onChange={(event) => setPlanName(event.target.value)}
+              placeholder="Neuer Plan (z. B. Push Day)"
+              aria-label="Trainingsplan Name"
+            />
+            <button type="submit">Plan</button>
+          </form>
+
+          {activePlan ? (
+            <form onSubmit={addExercise} className="form-grid">
+              <input
+                value={exerciseName}
+                onChange={(event) => setExerciseName(event.target.value)}
+                placeholder="Neue Übung"
+                aria-label="Übungsname"
+              />
+              <select
+                value={exerciseWeight}
+                onChange={(event) => setExerciseWeight(event.target.value)}
+                aria-label="Startgewicht"
+              >
+                {weightOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option} kg
+                  </option>
+                ))}
+              </select>
+              <button type="submit">Übung</button>
+            </form>
+          ) : null}
         </section>
       </section>
     </main>
