@@ -19,6 +19,7 @@ body {
 }
 
 input,
+select,
 button {
   font: inherit;
 }
@@ -89,6 +90,7 @@ button {
 }
 
 input {
+select {
   width: 100%;
   border: 1px solid rgba(255, 255, 255, 0.25);
   background: rgba(14, 20, 38, 0.55);
@@ -103,7 +105,8 @@ input::placeholder {
   color: rgba(241, 247, 255, 0.62);
 }
 
-input:focus {
+input:focus,
+select:focus {
   border-color: rgba(145, 190, 255, 0.95);
 }
 

@@ -61,7 +61,15 @@ export default function App() {
 
   const [planName, setPlanName] = useState('');
   const [exerciseName, setExerciseName] = useState('');
-  const [exerciseWeight, setExerciseWeight] = useState('');
+  const [exerciseWeight, setExerciseWeight] = useState('20.0');
+
+  const weightOptions = useMemo(() => {
+    const options: string[] = [];
+    for (let value = 0; value <= 300; value += 0.5) {
+      options.push(value.toFixed(1));
+    }
+    return options;
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(plans));
@@ -132,7 +140,7 @@ export default function App() {
     );
 
     setExerciseName('');
-    setExerciseWeight('');
+    setExerciseWeight('20.0');
   }
 
   function updateExerciseWeight(exerciseId: string, value: string) {
@@ -215,13 +223,17 @@ export default function App() {
                   placeholder="Übung"
                   aria-label="Übungsname"
                 />
-                <input
+                <select
                   value={exerciseWeight}
                   onChange={(event) => setExerciseWeight(event.target.value)}
-                  placeholder="Gewicht in kg"
-                  inputMode="decimal"
                   aria-label="Gewicht"
-                />
+                >
+                  {weightOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option} kg
+                    </option>
+                  ))}
+                </select>
                 <button type="submit">Übung hinzufügen</button>
               </form>
 
@@ -237,24 +249,21 @@ export default function App() {
                         {deltaText ? <small>{deltaText}</small> : null}
                       </div>
 
-                      <form
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          const formData = new FormData(event.currentTarget);
-                          const newWeight = String(formData.get('newWeight') ?? '');
-                          updateExerciseWeight(exercise.id, newWeight);
-                          event.currentTarget.reset();
-                        }}
-                        className="inline-update"
-                      >
-                        <input
-                          name="newWeight"
-                          inputMode="decimal"
-                          placeholder="Neues Gewicht"
-                          aria-label={`Neues Gewicht für ${exercise.name}`}
-                        />
-                        <button type="submit">Update</button>
-                      </form>
+                      <div className="inline-update">
+                        <select
+                          value={exercise.currentWeight.toFixed(1)}
+                          onChange={(event) =>
+                            updateExerciseWeight(exercise.id, event.target.value)
+                          }
+                          aria-label={`Gewicht für ${exercise.name}`}
+                        >
+                          {weightOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option} kg
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </article>
                   );
                 })}
