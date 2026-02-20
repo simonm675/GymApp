@@ -6,7 +6,6 @@ type Exercise = {
   currentWeight: number;
   previousWeight: number | null;
   bestWeight: number;
-  completed: boolean;
   notes: string;
   targetSets: number;
   completedSets: number;
@@ -29,39 +28,37 @@ type HistoryExercise = {
 type TrainingHistoryEntry = {
   id: string;
   dateIso: string;
-  planId: string;
   planName: string;
   exercises: HistoryExercise[];
 };
 
-const STORAGE_KEY = 'gymapp:v2:plans';
-const HISTORY_KEY = 'gymapp:v2:history';
+const STORAGE_KEY = 'gymapp:v3:plans';
+const HISTORY_KEY = 'gymapp:v3:history';
 
 function createId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 function clampWeight(value: number) {
-  return Math.max(0, Math.min(300, value));
+  return Math.max(0, Math.min(400, value));
 }
 
 function clampInt(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
 }
 
-function normalizeExercise(input: Partial<Exercise> & { id: string; name: string }): Exercise {
-  const currentWeight = Number(input.currentWeight ?? 0);
-  const targetSets = clampInt(Number(input.targetSets ?? 3), 1, 12);
-  const completedSets = clampInt(Number(input.completedSets ?? 0), 0, targetSets);
+function normalizeExercise(raw: Partial<Exercise> & { id: string; name: string }): Exercise {
+  const currentWeight = Number(raw.currentWeight ?? 0);
+  const targetSets = clampInt(Number(raw.targetSets ?? 3), 1, 12);
+  const completedSets = clampInt(Number(raw.completedSets ?? 0), 0, targetSets);
 
   return {
-    id: input.id,
-    name: input.name,
+    id: raw.id,
+    name: raw.name,
     currentWeight,
-    previousWeight: input.previousWeight ?? null,
-    bestWeight: Number(input.bestWeight ?? currentWeight),
-    completed: Boolean(input.completed ?? completedSets >= targetSets),
-    notes: String(input.notes ?? ''),
+    previousWeight: raw.previousWeight ?? null,
+    bestWeight: Number(raw.bestWeight ?? currentWeight),
+    notes: String(raw.notes ?? ''),
     targetSets,
     completedSets
   };
@@ -137,8 +134,9 @@ function formatTimer(seconds: number) {
 export default function App() {
   const [plans, setPlans] = useState<TrainingPlan[]>(() => loadPlans());
   const [history, setHistory] = useState<TrainingHistoryEntry[]>(() => loadHistory());
-  const [activePlanId, setActivePlanId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'today' | 'exercises' | 'manage'>('today');
+
+  const [activeTab, setActiveTab] = useState<'today' | 'workout' | 'manage'>('today');
+  const [activePlanId, setActivePlanId] = useState('');
 
   const [planName, setPlanName] = useState('');
   const [planEditName, setPlanEditName] = useState('');
@@ -148,15 +146,12 @@ export default function App() {
   const [restSeconds, setRestSeconds] = useState(90);
   const [restRunning, setRestRunning] = useState(false);
 
-  const [draggingExerciseId, setDraggingExerciseId] = useState<string | null>(null);
-  const [dragOverExerciseId, setDragOverExerciseId] = useState<string | null>(null);
-
   const weightOptions = useMemo(() => {
-    const options: string[] = [];
+    const values: string[] = [];
     for (let value = 0; value <= 300; value += 0.5) {
-      options.push(value.toFixed(1));
+      values.push(value.toFixed(1));
     }
-    return options;
+    return values;
   }, []);
 
   useEffect(() => {
@@ -179,6 +174,15 @@ export default function App() {
     }
   }, [plans, activePlanId]);
 
+  const activePlan = useMemo(
+    () => plans.find((plan) => plan.id === activePlanId) ?? null,
+    [plans, activePlanId]
+  );
+
+  useEffect(() => {
+    setPlanEditName(activePlan?.name ?? '');
+  }, [activePlan]);
+
   useEffect(() => {
     if (!restRunning) {
       return;
@@ -198,51 +202,67 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, [restRunning]);
 
-  const activePlan = useMemo(
-    () => plans.find((plan) => plan.id === activePlanId) ?? null,
-    [plans, activePlanId]
-  );
-
-  const planStats = useMemo(() => {
+  const stats = useMemo(() => {
     if (!activePlan) {
-      return { exerciseCount: 0, avgWeight: 0, progressCount: 0, completedCount: 0 };
+      return { exerciseCount: 0, avgWeight: 0, progressed: 0, done: 0 };
     }
 
     const exerciseCount = activePlan.exercises.length;
-    const totalWeight = activePlan.exercises.reduce(
-      (sum, exercise) => sum + exercise.currentWeight,
-      0
-    );
-    const avgWeight = exerciseCount > 0 ? totalWeight / exerciseCount : 0;
-    const progressCount = activePlan.exercises.filter(
-      (exercise) => exercise.previousWeight !== null && exercise.currentWeight > exercise.previousWeight
+    const avgWeight =
+      exerciseCount > 0
+        ? activePlan.exercises.reduce((sum, e) => sum + e.currentWeight, 0) / exerciseCount
+        : 0;
+    const progressed = activePlan.exercises.filter(
+      (e) => e.previousWeight !== null && e.currentWeight > e.previousWeight
     ).length;
-    const completedCount = activePlan.exercises.filter((exercise) => exercise.completed).length;
+    const done = activePlan.exercises.filter((e) => e.completedSets >= e.targetSets).length;
 
-    return { exerciseCount, avgWeight, progressCount, completedCount };
+    return { exerciseCount, avgWeight, progressed, done };
   }, [activePlan]);
 
-  useEffect(() => {
-    setPlanEditName(activePlan?.name ?? '');
-  }, [activePlan]);
+  const workoutProgress =
+    stats.exerciseCount > 0 ? Math.round((stats.done / stats.exerciseCount) * 100) : 0;
 
   function createPlan(event: FormEvent) {
     event.preventDefault();
-
     const name = planName.trim();
     if (!name) {
       return;
     }
 
-    const newPlan: TrainingPlan = {
+    const nextPlan: TrainingPlan = {
       id: createId(),
       name,
       exercises: []
     };
 
-    setPlans((previous) => [newPlan, ...previous]);
-    setActivePlanId(newPlan.id);
+    setPlans((prev) => [nextPlan, ...prev]);
+    setActivePlanId(nextPlan.id);
     setPlanName('');
+  }
+
+  function renameActivePlan(event: FormEvent) {
+    event.preventDefault();
+    if (!activePlan) {
+      return;
+    }
+
+    const name = planEditName.trim();
+    if (!name) {
+      return;
+    }
+
+    setPlans((prev) =>
+      prev.map((plan) => (plan.id === activePlan.id ? { ...plan, name } : plan))
+    );
+  }
+
+  function deleteActivePlan() {
+    if (!activePlan) {
+      return;
+    }
+
+    setPlans((prev) => prev.filter((plan) => plan.id !== activePlan.id));
   }
 
   function addExercise(event: FormEvent) {
@@ -253,27 +273,25 @@ export default function App() {
 
     const name = exerciseName.trim();
     const parsedWeight = Number.parseFloat(exerciseWeight);
-
     if (!name || Number.isNaN(parsedWeight) || parsedWeight < 0) {
       return;
     }
 
-    const normalizedWeight = Number(parsedWeight.toFixed(1));
+    const weight = Number(parsedWeight.toFixed(1));
 
     const newExercise: Exercise = {
       id: createId(),
       name,
-      currentWeight: normalizedWeight,
+      currentWeight: weight,
       previousWeight: null,
-      bestWeight: normalizedWeight,
-      completed: false,
+      bestWeight: weight,
       notes: '',
       targetSets: 3,
       completedSets: 0
     };
 
-    setPlans((previous) =>
-      previous.map((plan) =>
+    setPlans((prev) =>
+      prev.map((plan) =>
         plan.id === activePlan.id
           ? { ...plan, exercises: [...plan.exercises, newExercise] }
           : plan
@@ -284,16 +302,20 @@ export default function App() {
     setExerciseWeight('20.0');
   }
 
-  function updateExerciseWeight(exerciseId: string, value: string) {
-    const parsedWeight = Number.parseFloat(value);
-    if (Number.isNaN(parsedWeight) || parsedWeight < 0 || !activePlan) {
+  function updateExerciseWeight(exerciseId: string, nextValue: string) {
+    if (!activePlan) {
       return;
     }
 
-    const nextWeight = Number(parsedWeight.toFixed(1));
+    const parsed = Number.parseFloat(nextValue);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      return;
+    }
 
-    setPlans((previous) =>
-      previous.map((plan) => {
+    const nextWeight = Number(parsed.toFixed(1));
+
+    setPlans((prev) =>
+      prev.map((plan) => {
         if (plan.id !== activePlan.id) {
           return plan;
         }
@@ -301,11 +323,7 @@ export default function App() {
         return {
           ...plan,
           exercises: plan.exercises.map((exercise) => {
-            if (exercise.id !== exerciseId) {
-              return exercise;
-            }
-
-            if (exercise.currentWeight === nextWeight) {
+            if (exercise.id !== exerciseId || exercise.currentWeight === nextWeight) {
               return exercise;
             }
 
@@ -313,8 +331,7 @@ export default function App() {
               ...exercise,
               previousWeight: exercise.currentWeight,
               currentWeight: nextWeight,
-              bestWeight: Math.max(exercise.bestWeight, nextWeight),
-              completed: false
+              bestWeight: Math.max(exercise.bestWeight, nextWeight)
             };
           })
         };
@@ -327,8 +344,8 @@ export default function App() {
       return;
     }
 
-    setPlans((previous) =>
-      previous.map((plan) => {
+    setPlans((prev) =>
+      prev.map((plan) => {
         if (plan.id !== activePlan.id) {
           return plan;
         }
@@ -340,10 +357,7 @@ export default function App() {
               return exercise;
             }
 
-            const nextWeight = clampWeight(
-              Number((exercise.currentWeight + delta).toFixed(1))
-            );
-
+            const nextWeight = clampWeight(Number((exercise.currentWeight + delta).toFixed(1)));
             if (nextWeight === exercise.currentWeight) {
               return exercise;
             }
@@ -352,8 +366,7 @@ export default function App() {
               ...exercise,
               previousWeight: exercise.currentWeight,
               currentWeight: nextWeight,
-              bestWeight: Math.max(exercise.bestWeight, nextWeight),
-              completed: false
+              bestWeight: Math.max(exercise.bestWeight, nextWeight)
             };
           })
         };
@@ -361,13 +374,13 @@ export default function App() {
     );
   }
 
-  function setExerciseCompleted(exerciseId: string, completed: boolean) {
+  function setExerciseSets(exerciseId: string, completedSets: number) {
     if (!activePlan) {
       return;
     }
 
-    setPlans((previous) =>
-      previous.map((plan) => {
+    setPlans((prev) =>
+      prev.map((plan) => {
         if (plan.id !== activePlan.id) {
           return plan;
         }
@@ -378,41 +391,10 @@ export default function App() {
             exercise.id === exerciseId
               ? {
                   ...exercise,
-                  completed,
-                  completedSets: completed ? exercise.targetSets : 0
+                  completedSets: clampInt(completedSets, 0, exercise.targetSets)
                 }
               : exercise
           )
-        };
-      })
-    );
-  }
-
-  function setExerciseSets(exerciseId: string, nextCompletedSets: number) {
-    if (!activePlan) {
-      return;
-    }
-
-    setPlans((previous) =>
-      previous.map((plan) => {
-        if (plan.id !== activePlan.id) {
-          return plan;
-        }
-
-        return {
-          ...plan,
-          exercises: plan.exercises.map((exercise) => {
-            if (exercise.id !== exerciseId) {
-              return exercise;
-            }
-
-            const clamped = clampInt(nextCompletedSets, 0, exercise.targetSets);
-            return {
-              ...exercise,
-              completedSets: clamped,
-              completed: clamped >= exercise.targetSets
-            };
-          })
         };
       })
     );
@@ -426,8 +408,8 @@ export default function App() {
       return;
     }
 
-    setPlans((previous) =>
-      previous.map((plan) => {
+    setPlans((prev) =>
+      prev.map((plan) => {
         if (plan.id !== activePlan.id) {
           return plan;
         }
@@ -447,8 +429,7 @@ export default function App() {
               ...exercise,
               ...patch,
               targetSets,
-              completedSets: clampInt(exercise.completedSets, 0, targetSets),
-              completed: clampInt(exercise.completedSets, 0, targetSets) >= targetSets
+              completedSets: clampInt(exercise.completedSets, 0, targetSets)
             };
           })
         };
@@ -461,80 +442,42 @@ export default function App() {
       return;
     }
 
-    setPlans((previous) =>
-      previous.map((plan) =>
+    setPlans((prev) =>
+      prev.map((plan) =>
         plan.id === activePlan.id
-          ? {
-              ...plan,
-              exercises: plan.exercises.filter((exercise) => exercise.id !== exerciseId)
-            }
+          ? { ...plan, exercises: plan.exercises.filter((exercise) => exercise.id !== exerciseId) }
           : plan
       )
     );
   }
 
-  function renameActivePlan(event: FormEvent) {
-    event.preventDefault();
+  function moveExerciseByOffset(exerciseId: string, offset: -1 | 1) {
     if (!activePlan) {
       return;
     }
 
-    const nextName = planEditName.trim();
-    if (!nextName) {
-      return;
-    }
-
-    setPlans((previous) =>
-      previous.map((plan) =>
-        plan.id === activePlan.id
-          ? {
-              ...plan,
-              name: nextName
-            }
-          : plan
-      )
-    );
-  }
-
-  function deleteActivePlan() {
-    if (!activePlan) {
-      return;
-    }
-
-    setPlans((previous) => previous.filter((plan) => plan.id !== activePlan.id));
-  }
-
-  function moveExercise(dragId: string, targetId: string) {
-    if (!activePlan || dragId === targetId) {
-      return;
-    }
-
-    setPlans((previous) =>
-      previous.map((plan) => {
+    setPlans((prev) =>
+      prev.map((plan) => {
         if (plan.id !== activePlan.id) {
           return plan;
         }
 
-        const fromIndex = plan.exercises.findIndex((exercise) => exercise.id === dragId);
-        const toIndex = plan.exercises.findIndex((exercise) => exercise.id === targetId);
-
-        if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+        const index = plan.exercises.findIndex((exercise) => exercise.id === exerciseId);
+        const target = index + offset;
+        if (index < 0 || target < 0 || target >= plan.exercises.length) {
           return plan;
         }
 
         const reordered = [...plan.exercises];
-        const [moved] = reordered.splice(fromIndex, 1);
-        reordered.splice(toIndex, 0, moved);
+        const [moved] = reordered.splice(index, 1);
+        reordered.splice(target, 0, moved);
 
-        return {
-          ...plan,
-          exercises: reordered
-        };
+        return { ...plan, exercises: reordered };
       })
     );
   }
 
-  function finishTraining() {
+  function finishWorkout() {
     if (!activePlan || activePlan.exercises.length === 0) {
       return;
     }
@@ -542,7 +485,6 @@ export default function App() {
     const entry: TrainingHistoryEntry = {
       id: createId(),
       dateIso: new Date().toISOString(),
-      planId: activePlan.id,
       planName: activePlan.name,
       exercises: activePlan.exercises.map((exercise) => ({
         name: exercise.name,
@@ -556,16 +498,14 @@ export default function App() {
       }))
     };
 
-    setHistory((previous) => [entry, ...previous].slice(0, 40));
-
-    setPlans((previous) =>
-      previous.map((plan) =>
+    setHistory((prev) => [entry, ...prev].slice(0, 60));
+    setPlans((prev) =>
+      prev.map((plan) =>
         plan.id === activePlan.id
           ? {
               ...plan,
               exercises: plan.exercises.map((exercise) => ({
                 ...exercise,
-                completed: false,
                 completedSets: 0
               }))
             }
@@ -602,51 +542,55 @@ export default function App() {
                   </div>
 
                   {activePlan ? (
-                    <div className="mini-stats-grid">
-                      <article className="stat-card">
-                        <span>Übungen</span>
-                        <strong>{planStats.exerciseCount}</strong>
-                      </article>
-                      <article className="stat-card">
-                        <span>Ø KG</span>
-                        <strong>{planStats.avgWeight.toFixed(1)}</strong>
-                      </article>
-                      <article className="stat-card">
-                        <span>Steigerungen</span>
-                        <strong>{planStats.progressCount}</strong>
-                      </article>
-                    </div>
+                    <>
+                      <div className="mini-stats-grid">
+                        <article className="stat-card">
+                          <span>Übungen</span>
+                          <strong>{stats.exerciseCount}</strong>
+                        </article>
+                        <article className="stat-card">
+                          <span>Ø KG</span>
+                          <strong>{stats.avgWeight.toFixed(1)}</strong>
+                        </article>
+                        <article className="stat-card">
+                          <span>Fortschritt</span>
+                          <strong>{workoutProgress}%</strong>
+                        </article>
+                      </div>
+
+                      <button type="button" onClick={() => setActiveTab('workout')}>
+                        Workout starten
+                      </button>
+                    </>
                   ) : null}
 
                   <div className="history-block">
-                    <h3>Verlauf</h3>
+                    <h3>Letzte Workouts</h3>
                     {history.length === 0 ? (
-                      <p className="empty-text">Noch kein abgeschlossenes Training.</p>
+                      <p className="empty-text">Noch kein Workout abgeschlossen.</p>
                     ) : (
                       <div className="history-list">
-                        {history.slice(0, 4).map((entry) => (
-                          <article key={entry.id} className="history-item">
-                            <div>
-                              <strong>{entry.planName}</strong>
-                              <p>
-                                {new Date(entry.dateIso).toLocaleDateString('de-DE')} · {entry.exercises.length}{' '}
-                                Übungen
-                              </p>
-                            </div>
-                            <span>
-                              {entry.exercises.filter((exercise) => exercise.isPr).length > 0
-                                ? `${entry.exercises.filter((exercise) => exercise.isPr).length} PR`
-                                : '—'}
-                            </span>
-                          </article>
-                        ))}
+                        {history.slice(0, 4).map((entry) => {
+                          const prCount = entry.exercises.filter((exercise) => exercise.isPr).length;
+                          return (
+                            <article key={entry.id} className="history-item">
+                              <div>
+                                <strong>{entry.planName}</strong>
+                                <p>
+                                  {new Date(entry.dateIso).toLocaleDateString('de-DE')} · {entry.exercises.length} Übungen
+                                </p>
+                              </div>
+                              <span>{prCount > 0 ? `${prCount} PR` : '—'}</span>
+                            </article>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
                 </>
               ) : (
                 <div className="empty-state">
-                  <p className="empty-text">Erstelle in Verwalten deinen ersten Plan.</p>
+                  <p className="empty-text">Lege in Verwalten deinen ersten Plan an.</p>
                   <button type="button" onClick={() => setActiveTab('manage')}>
                     Zu Verwalten
                   </button>
@@ -655,16 +599,16 @@ export default function App() {
             </section>
           ) : null}
 
-          {activeTab === 'exercises' ? (
+          {activeTab === 'workout' ? (
             <section className="section-block ios-group">
-              <h2>Training</h2>
+              <h2>Workout</h2>
 
               {activePlan ? (
                 <>
                   <div className="current-plan-row compact">
-                    <label htmlFor="exercise-plan">Plan</label>
+                    <label htmlFor="workout-plan">Plan</label>
                     <select
-                      id="exercise-plan"
+                      id="workout-plan"
                       value={activePlanId}
                       onChange={(event) => setActivePlanId(event.target.value)}
                       aria-label="Aktiver Trainingsplan"
@@ -677,6 +621,13 @@ export default function App() {
                     </select>
                   </div>
 
+                  <div className="workout-head">
+                    <p className="plan-hint">{stats.done}/{stats.exerciseCount} Übungen abgeschlossen</p>
+                    <div className="progress-track" aria-label="Workout Fortschritt">
+                      <span style={{ width: `${workoutProgress}%` }} />
+                    </div>
+                  </div>
+
                   <div className="rest-timer">
                     <p>Rest Timer</p>
                     <strong>{formatTimer(restSeconds)}</strong>
@@ -684,7 +635,11 @@ export default function App() {
                       <button type="button" className="secondary-btn" onClick={() => setRestSeconds(90)}>
                         90s
                       </button>
-                      <button type="button" className="secondary-btn" onClick={() => setRestSeconds((s) => s + 30)}>
+                      <button
+                        type="button"
+                        className="secondary-btn"
+                        onClick={() => setRestSeconds((previous) => previous + 30)}
+                      >
                         +30s
                       </button>
                       <button type="button" onClick={() => setRestRunning((running) => !running)}>
@@ -693,10 +648,6 @@ export default function App() {
                     </div>
                   </div>
 
-                  <p className="plan-hint">
-                    Fortschritt: {planStats.completedCount}/{planStats.exerciseCount} erledigt
-                  </p>
-
                   <div className="exercise-list">
                     {activePlan.exercises.map((exercise) => {
                       const deltaText = formatDelta(exercise);
@@ -704,46 +655,19 @@ export default function App() {
                         exercise.previousWeight !== null &&
                         exercise.currentWeight >= exercise.bestWeight &&
                         exercise.currentWeight > exercise.previousWeight;
+                      const isDone = exercise.completedSets >= exercise.targetSets;
 
                       return (
-                        <article
-                          key={exercise.id}
-                          draggable
-                          onDragStart={() => setDraggingExerciseId(exercise.id)}
-                          onDragEnd={() => {
-                            setDraggingExerciseId(null);
-                            setDragOverExerciseId(null);
-                          }}
-                          onDragOver={(event) => {
-                            event.preventDefault();
-                            if (dragOverExerciseId !== exercise.id) {
-                              setDragOverExerciseId(exercise.id);
-                            }
-                          }}
-                          onDrop={(event) => {
-                            event.preventDefault();
-                            if (draggingExerciseId) {
-                              moveExercise(draggingExerciseId, exercise.id);
-                            }
-                            setDraggingExerciseId(null);
-                            setDragOverExerciseId(null);
-                          }}
-                          className={`exercise-card ${exercise.completed ? 'completed' : ''} ${
-                            draggingExerciseId === exercise.id ? 'dragging' : ''
-                          } ${dragOverExerciseId === exercise.id ? 'drag-over' : ''}`}
-                        >
+                        <article key={exercise.id} className={`exercise-card ${isDone ? 'completed' : ''}`}>
                           <div>
-                            <p className="drag-hint">⋮⋮ sortieren</p>
                             <h3>{exercise.name}</h3>
                             <p className="weight-main">{exercise.currentWeight.toFixed(1)} kg</p>
                             <div className="badge-row">
                               {deltaText ? <small className="delta-badge">{deltaText}</small> : null}
                               {isPr ? <small className="pr-badge">PR</small> : null}
-                              {exercise.completed ? <small className="done-badge">Fertig</small> : null}
+                              {isDone ? <small className="done-badge">Fertig</small> : null}
                             </div>
-                            {exercise.notes.trim() ? (
-                              <p className="exercise-note">{exercise.notes}</p>
-                            ) : null}
+                            {exercise.notes.trim() ? <p className="exercise-note">{exercise.notes}</p> : null}
                           </div>
 
                           <div className="inline-update">
@@ -757,9 +681,7 @@ export default function App() {
                             </button>
                             <select
                               value={exercise.currentWeight.toFixed(1)}
-                              onChange={(event) =>
-                                updateExerciseWeight(exercise.id, event.target.value)
-                              }
+                              onChange={(event) => updateExerciseWeight(exercise.id, event.target.value)}
                               aria-label={`Gewicht für ${exercise.name}`}
                             >
                               {weightOptions.map((option) => (
@@ -784,59 +706,39 @@ export default function App() {
                             </span>
                             <div className="set-chips" role="group" aria-label={`Sätze ${exercise.name}`}>
                               {Array.from({ length: exercise.targetSets }).map((_, index) => {
-                                const setNumber = index + 1;
-                                const done = setNumber <= exercise.completedSets;
+                                const setNo = index + 1;
+                                const done = setNo <= exercise.completedSets;
 
                                 return (
                                   <button
-                                    key={`${exercise.id}-set-${setNumber}`}
+                                    key={`${exercise.id}-set-${setNo}`}
                                     type="button"
                                     className={`set-chip ${done ? 'done' : ''}`}
-                                    onClick={() =>
-                                      setExerciseSets(
-                                        exercise.id,
-                                        done ? setNumber - 1 : setNumber
-                                      )
-                                    }
-                                    aria-label={`Satz ${setNumber} ${done ? 'zurücksetzen' : 'abhaken'}`}
+                                    onClick={() => setExerciseSets(exercise.id, done ? setNo - 1 : setNo)}
                                   >
-                                    {setNumber}
+                                    {setNo}
                                   </button>
                                 );
                               })}
                             </div>
-                          </div>
-
-                          <div className="card-actions">
-                            <button
-                              type="button"
-                              className="secondary-btn"
-                              onClick={() => setExerciseCompleted(exercise.id, !exercise.completed)}
-                            >
-                              {exercise.completed ? 'Als offen markieren' : 'Komplett abhaken'}
-                            </button>
                           </div>
                         </article>
                       );
                     })}
 
                     {activePlan.exercises.length === 0 ? (
-                      <p className="empty-text">
-                        Noch keine Übungen in diesem Plan gespeichert.
-                      </p>
+                      <p className="empty-text">Füge in Verwalten Übungen hinzu.</p>
                     ) : null}
                   </div>
 
                   {activePlan.exercises.length > 0 ? (
-                    <button type="button" className="finish-btn" onClick={finishTraining}>
-                      Training abschließen
+                    <button type="button" className="finish-btn" onClick={finishWorkout}>
+                      Workout abschließen
                     </button>
                   ) : null}
                 </>
               ) : (
-                <p className="empty-text">
-                  Sobald ein Plan da ist, siehst du hier direkt alle Übungen und Gewichte.
-                </p>
+                <p className="empty-text">Wähle zuerst auf Heute einen Plan aus.</p>
               )}
             </section>
           ) : null}
@@ -844,7 +746,8 @@ export default function App() {
           {activeTab === 'manage' ? (
             <>
               <section className="section-block ios-group manage-block">
-                <h2>Verwalten</h2>
+                <h2>Pläne</h2>
+
                 <form onSubmit={createPlan} className="form-row">
                   <input
                     value={planName}
@@ -852,37 +755,13 @@ export default function App() {
                     placeholder="Neuer Plan (z. B. Push Day)"
                     aria-label="Trainingsplan Name"
                   />
-                  <button type="submit">Plan anlegen</button>
+                  <button type="submit">Anlegen</button>
                 </form>
-
-                {activePlan ? (
-                  <form onSubmit={renameActivePlan} className="form-row">
-                    <input
-                      value={planEditName}
-                      onChange={(event) => setPlanEditName(event.target.value)}
-                      placeholder="Aktiven Plan umbenennen"
-                      aria-label="Plan umbenennen"
-                    />
-                    <button type="submit" className="secondary-btn">
-                      Umbenennen
-                    </button>
-                  </form>
-                ) : null}
-
-                {activePlan ? (
-                  <button type="button" className="danger-btn" onClick={deleteActivePlan}>
-                    Aktiven Plan löschen
-                  </button>
-                ) : null}
-              </section>
-
-              <section className="section-block ios-group">
-                <h2>Übung hinzufügen</h2>
 
                 {activePlan ? (
                   <>
                     <div className="current-plan-row compact">
-                      <label htmlFor="manage-plan">Plan</label>
+                      <label htmlFor="manage-plan">Aktiver Plan</label>
                       <select
                         id="manage-plan"
                         value={activePlanId}
@@ -897,6 +776,30 @@ export default function App() {
                       </select>
                     </div>
 
+                    <form onSubmit={renameActivePlan} className="form-row">
+                      <input
+                        value={planEditName}
+                        onChange={(event) => setPlanEditName(event.target.value)}
+                        placeholder="Planname bearbeiten"
+                        aria-label="Planname bearbeiten"
+                      />
+                      <button type="submit" className="secondary-btn">
+                        Speichern
+                      </button>
+                    </form>
+
+                    <button type="button" className="danger-btn" onClick={deleteActivePlan}>
+                      Aktiven Plan löschen
+                    </button>
+                  </>
+                ) : null}
+              </section>
+
+              <section className="section-block ios-group">
+                <h2>Übungen</h2>
+
+                {activePlan ? (
+                  <>
                     <form onSubmit={addExercise} className="form-grid">
                       <input
                         value={exerciseName}
@@ -919,7 +822,7 @@ export default function App() {
                     </form>
 
                     <div className="manage-exercise-list">
-                      {activePlan.exercises.map((exercise) => (
+                      {activePlan.exercises.map((exercise, index) => (
                         <article key={exercise.id} className="manage-card">
                           <input
                             value={exercise.name}
@@ -950,8 +853,8 @@ export default function App() {
                               }
                               aria-label={`Satzanzahl für ${exercise.name}`}
                             >
-                              {Array.from({ length: 10 }).map((_, index) => {
-                                const value = index + 1;
+                              {Array.from({ length: 10 }).map((_, idx) => {
+                                const value = idx + 1;
                                 return (
                                   <option key={value} value={value}>
                                     {value} Sätze
@@ -959,16 +862,39 @@ export default function App() {
                                 );
                               })}
                             </select>
-                            <button type="button" className="danger-btn" onClick={() => deleteExercise(exercise.id)}>
-                              Löschen
-                            </button>
+
+                            <div className="reorder-actions">
+                              <button
+                                type="button"
+                                className="secondary-btn"
+                                onClick={() => moveExerciseByOffset(exercise.id, -1)}
+                                disabled={index === 0}
+                              >
+                                ↑
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary-btn"
+                                onClick={() => moveExerciseByOffset(exercise.id, 1)}
+                                disabled={index === activePlan.exercises.length - 1}
+                              >
+                                ↓
+                              </button>
+                              <button
+                                type="button"
+                                className="danger-btn"
+                                onClick={() => deleteExercise(exercise.id)}
+                              >
+                                Löschen
+                              </button>
+                            </div>
                           </div>
                         </article>
                       ))}
                     </div>
                   </>
                 ) : (
-                  <p className="empty-text">Lege zuerst einen Plan an, dann Übungen hinzufügen.</p>
+                  <p className="empty-text">Lege zuerst einen Plan an.</p>
                 )}
               </section>
             </>
@@ -985,10 +911,10 @@ export default function App() {
           </button>
           <button
             type="button"
-            className={`tab-item ${activeTab === 'exercises' ? 'active' : ''}`}
-            onClick={() => setActiveTab('exercises')}
+            className={`tab-item ${activeTab === 'workout' ? 'active' : ''}`}
+            onClick={() => setActiveTab('workout')}
           >
-            Übungen
+            Workout
           </button>
           <button
             type="button"
