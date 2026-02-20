@@ -141,6 +141,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'today' | 'exercises' | 'manage'>('today');
 
   const [planName, setPlanName] = useState('');
+  const [planEditName, setPlanEditName] = useState('');
   const [exerciseName, setExerciseName] = useState('');
   const [exerciseWeight, setExerciseWeight] = useState('20.0');
 
@@ -219,6 +220,10 @@ export default function App() {
     const completedCount = activePlan.exercises.filter((exercise) => exercise.completed).length;
 
     return { exerciseCount, avgWeight, progressCount, completedCount };
+  }, [activePlan]);
+
+  useEffect(() => {
+    setPlanEditName(activePlan?.name ?? '');
   }, [activePlan]);
 
   function createPlan(event: FormEvent) {
@@ -468,6 +473,37 @@ export default function App() {
     );
   }
 
+  function renameActivePlan(event: FormEvent) {
+    event.preventDefault();
+    if (!activePlan) {
+      return;
+    }
+
+    const nextName = planEditName.trim();
+    if (!nextName) {
+      return;
+    }
+
+    setPlans((previous) =>
+      previous.map((plan) =>
+        plan.id === activePlan.id
+          ? {
+              ...plan,
+              name: nextName
+            }
+          : plan
+      )
+    );
+  }
+
+  function deleteActivePlan() {
+    if (!activePlan) {
+      return;
+    }
+
+    setPlans((previous) => previous.filter((plan) => plan.id !== activePlan.id));
+  }
+
   function moveExercise(dragId: string, targetId: string) {
     if (!activePlan || dragId === targetId) {
       return;
@@ -703,6 +739,7 @@ export default function App() {
                             <div className="badge-row">
                               {deltaText ? <small className="delta-badge">{deltaText}</small> : null}
                               {isPr ? <small className="pr-badge">PR</small> : null}
+                              {exercise.completed ? <small className="done-badge">Fertig</small> : null}
                             </div>
                             {exercise.notes.trim() ? (
                               <p className="exercise-note">{exercise.notes}</p>
@@ -741,33 +778,44 @@ export default function App() {
                             </button>
                           </div>
 
-                          <div className="sets-row">
-                            <button
-                              type="button"
-                              className="secondary-btn"
-                              onClick={() => setExerciseSets(exercise.id, exercise.completedSets - 1)}
-                            >
-                              −
-                            </button>
+                          <div className="sets-row sets-row-chip">
                             <span>
                               Sätze {exercise.completedSets}/{exercise.targetSets}
                             </span>
+                            <div className="set-chips" role="group" aria-label={`Sätze ${exercise.name}`}>
+                              {Array.from({ length: exercise.targetSets }).map((_, index) => {
+                                const setNumber = index + 1;
+                                const done = setNumber <= exercise.completedSets;
+
+                                return (
+                                  <button
+                                    key={`${exercise.id}-set-${setNumber}`}
+                                    type="button"
+                                    className={`set-chip ${done ? 'done' : ''}`}
+                                    onClick={() =>
+                                      setExerciseSets(
+                                        exercise.id,
+                                        done ? setNumber - 1 : setNumber
+                                      )
+                                    }
+                                    aria-label={`Satz ${setNumber} ${done ? 'zurücksetzen' : 'abhaken'}`}
+                                  >
+                                    {setNumber}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="card-actions">
                             <button
                               type="button"
                               className="secondary-btn"
-                              onClick={() => setExerciseSets(exercise.id, exercise.completedSets + 1)}
+                              onClick={() => setExerciseCompleted(exercise.id, !exercise.completed)}
                             >
-                              +
+                              {exercise.completed ? 'Als offen markieren' : 'Komplett abhaken'}
                             </button>
                           </div>
-
-                          <button
-                            type="button"
-                            className="done-btn"
-                            onClick={() => setExerciseCompleted(exercise.id, !exercise.completed)}
-                          >
-                            {exercise.completed ? 'Erledigt ✓' : 'Erledigen'}
-                          </button>
                         </article>
                       );
                     })}
@@ -806,6 +854,26 @@ export default function App() {
                   />
                   <button type="submit">Plan anlegen</button>
                 </form>
+
+                {activePlan ? (
+                  <form onSubmit={renameActivePlan} className="form-row">
+                    <input
+                      value={planEditName}
+                      onChange={(event) => setPlanEditName(event.target.value)}
+                      placeholder="Aktiven Plan umbenennen"
+                      aria-label="Plan umbenennen"
+                    />
+                    <button type="submit" className="secondary-btn">
+                      Umbenennen
+                    </button>
+                  </form>
+                ) : null}
+
+                {activePlan ? (
+                  <button type="button" className="danger-btn" onClick={deleteActivePlan}>
+                    Aktiven Plan löschen
+                  </button>
+                ) : null}
               </section>
 
               <section className="section-block ios-group">

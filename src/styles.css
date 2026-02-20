@@ -412,6 +412,16 @@ button:active {
   font-weight: 650;
 }
 
+.done-badge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 650;
+  border: 1px solid rgba(18, 148, 84, 0.35);
+  background: rgba(18, 148, 84, 0.14);
+  color: #128b4f;
+}
+
 .delta-badge {
   border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
   background: color-mix(in srgb, var(--accent) 12%, #ffffff);
@@ -464,6 +474,45 @@ button:active {
   font-size: 0.86rem;
   color: var(--muted);
   font-weight: 600;
+}
+
+.sets-row-chip {
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+
+.sets-row-chip span {
+  text-align: left;
+}
+
+.set-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.set-chip {
+  min-height: 34px;
+  min-width: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-strong);
+  color: var(--muted);
+  box-shadow: none;
+  padding: 0;
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.set-chip.done {
+  color: #fff;
+  border-color: color-mix(in srgb, var(--accent-strong) 55%, transparent);
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+}
+
+.card-actions {
+  display: grid;
+  grid-template-columns: 1fr;
 }
 
 .done-btn {
@@ -640,6 +689,12 @@ button:active {
     color: #62d89f;
   }
 
+  .done-badge {
+    background: rgba(34, 199, 112, 0.18);
+    border-color: rgba(34, 199, 112, 0.4);
+    color: #62d89f;
+  }
+
   .secondary-btn {
     color: #f3f3f7;
     border-color: rgba(84, 84, 88, 0.5);
@@ -658,5 +713,11 @@ button:active {
     background: #2c2c2e;
     color: #f5f5f7;
     border-color: rgba(84, 84, 88, 0.5);
+  }
+
+  .set-chip {
+    color: #d3d3d8;
+    border-color: rgba(84, 84, 88, 0.45);
+    background: rgba(40, 40, 44, 0.86);
   }
 }
