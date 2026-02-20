@@ -72,12 +72,12 @@ export default function App() {
   const [plans, setPlans] = useState<TrainingPlan[]>(() => loadPlans());
   const [activePlanId, setActivePlanId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'today' | 'exercises' | 'manage'>('today');
-  const [exerciseView, setExerciseView] = useState<'session' | 'list'>('session');
-  const [sessionIndex, setSessionIndex] = useState(0);
 
   const [planName, setPlanName] = useState('');
   const [exerciseName, setExerciseName] = useState('');
   const [exerciseWeight, setExerciseWeight] = useState('20.0');
+  const [draggingExerciseId, setDraggingExerciseId] = useState<string | null>(null);
+  const [dragOverExerciseId, setDragOverExerciseId] = useState<string | null>(null);
 
   const weightOptions = useMemo(() => {
     const options: string[] = [];
@@ -108,18 +108,9 @@ export default function App() {
     [plans, activePlanId]
   );
 
-  const currentSessionExercise = useMemo(() => {
-    if (!activePlan || activePlan.exercises.length === 0) {
-      return null;
-    }
-
-    const safeIndex = Math.max(0, Math.min(sessionIndex, activePlan.exercises.length - 1));
-    return activePlan.exercises[safeIndex];
-  }, [activePlan, sessionIndex]);
-
   const planStats = useMemo(() => {
     if (!activePlan) {
-      return { exerciseCount: 0, avgWeight: 0, progressCount: 0 };
+      return { exerciseCount: 0, avgWeight: 0, progressCount: 0, completedCount: 0 };
     }
 
     const exerciseCount = activePlan.exercises.length;
@@ -134,17 +125,6 @@ export default function App() {
     const completedCount = activePlan.exercises.filter((exercise) => exercise.completed).length;
 
     return { exerciseCount, avgWeight, progressCount, completedCount };
-  }, [activePlan]);
-
-  useEffect(() => {
-    if (!activePlan || activePlan.exercises.length === 0) {
-      setSessionIndex(0);
-      return;
-    }
-
-    setSessionIndex((previous) =>
-      Math.max(0, Math.min(previous, activePlan.exercises.length - 1))
-    );
   }, [activePlan]);
 
   function createPlan(event: FormEvent) {
@@ -190,7 +170,7 @@ export default function App() {
     setPlans((previous) =>
       previous.map((plan) =>
         plan.id === activePlan.id
-          ? { ...plan, exercises: [newExercise, ...plan.exercises] }
+          ? { ...plan, exercises: [...plan.exercises, newExercise] }
           : plan
       )
     );
@@ -293,6 +273,36 @@ export default function App() {
     );
   }
 
+  function moveExercise(dragId: string, targetId: string) {
+    if (!activePlan || dragId === targetId) {
+      return;
+    }
+
+    setPlans((previous) =>
+      previous.map((plan) => {
+        if (plan.id !== activePlan.id) {
+          return plan;
+        }
+
+        const fromIndex = plan.exercises.findIndex((exercise) => exercise.id === dragId);
+        const toIndex = plan.exercises.findIndex((exercise) => exercise.id === targetId);
+
+        if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+          return plan;
+        }
+
+        const reordered = [...plan.exercises];
+        const [moved] = reordered.splice(fromIndex, 1);
+        reordered.splice(toIndex, 0, moved);
+
+        return {
+          ...plan,
+          exercises: reordered
+        };
+      })
+    );
+  }
+
   return (
     <main className="app-shell">
       <section className="phone-frame">
@@ -316,10 +326,7 @@ export default function App() {
                           key={plan.id}
                           type="button"
                           className={`plan-select-card ${plan.id === activePlanId ? 'active' : ''}`}
-                          onClick={() => {
-                            setActivePlanId(plan.id);
-                            setSessionIndex(0);
-                          }}
+                          onClick={() => setActivePlanId(plan.id)}
                         >
                           {plan.name}
                         </button>
@@ -328,44 +335,37 @@ export default function App() {
 
                     {activePlan ? (
                       <>
-                    <article className="hero-card">
-                      <div>
-                        <p className="hero-kicker">Aktiver Plan</p>
-                        <h3>{activePlan.name}</h3>
-                        <p className="hero-meta">
-                          {planStats.completedCount}/{planStats.exerciseCount} Übungen erledigt
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setActiveTab('exercises');
-                          setExerciseView('session');
-                        }}
-                      >
-                        Session öffnen
-                      </button>
-                    </article>
+                        <article className="hero-card">
+                          <div>
+                            <p className="hero-kicker">Aktiver Plan</p>
+                            <h3>{activePlan.name}</h3>
+                            <p className="hero-meta">
+                              {planStats.completedCount}/{planStats.exerciseCount} Übungen erledigt
+                            </p>
+                          </div>
+                          <button type="button" onClick={() => setActiveTab('exercises')}>
+                            Übungen öffnen
+                          </button>
+                        </article>
 
-                    <div className="stats-grid">
-                      <article className="stat-card">
-                        <span>Übungen</span>
-                        <strong>{planStats.exerciseCount}</strong>
-                      </article>
-                      <article className="stat-card">
-                        <span>Ø Gewicht</span>
-                        <strong>{planStats.avgWeight.toFixed(1)} kg</strong>
-                      </article>
-                      <article className="stat-card">
-                        <span>Steigerungen</span>
-                        <strong>{planStats.progressCount}</strong>
-                      </article>
-                      <article className="stat-card">
-                        <span>Erledigt</span>
-                        <strong>{planStats.completedCount}</strong>
-                      </article>
-                    </div>
-
+                        <div className="stats-grid">
+                          <article className="stat-card">
+                            <span>Übungen</span>
+                            <strong>{planStats.exerciseCount}</strong>
+                          </article>
+                          <article className="stat-card">
+                            <span>Ø Gewicht</span>
+                            <strong>{planStats.avgWeight.toFixed(1)} kg</strong>
+                          </article>
+                          <article className="stat-card">
+                            <span>Steigerungen</span>
+                            <strong>{planStats.progressCount}</strong>
+                          </article>
+                          <article className="stat-card">
+                            <span>Erledigt</span>
+                            <strong>{planStats.completedCount}</strong>
+                          </article>
+                        </div>
                       </>
                     ) : null}
                   </>
@@ -417,192 +417,98 @@ export default function App() {
                     </select>
                   </div>
 
-                  <div className="view-switch" role="tablist" aria-label="Ansicht wechseln">
-                    <button
-                      type="button"
-                      className={`switch-btn ${exerciseView === 'session' ? 'active' : ''}`}
-                      onClick={() => setExerciseView('session')}
-                    >
-                      Session
-                    </button>
-                    <button
-                      type="button"
-                      className={`switch-btn ${exerciseView === 'list' ? 'active' : ''}`}
-                      onClick={() => setExerciseView('list')}
-                    >
-                      Liste
-                    </button>
-                  </div>
-
                   <p className="plan-hint">
                     Fortschritt: {planStats.completedCount}/{planStats.exerciseCount} erledigt
                   </p>
+                  <p className="plan-hint">Tipp: Ziehe Karten, um die Reihenfolge zu ändern.</p>
 
-                  {exerciseView === 'session' ? (
-                    currentSessionExercise ? (
-                      <article className="session-card">
-                        <div className="session-head">
-                          <span>
-                            Übung {sessionIndex + 1} von {activePlan.exercises.length}
-                          </span>
-                          {formatDelta(currentSessionExercise) ? (
-                            <small className="delta-badge">
-                              {formatDelta(currentSessionExercise)}
-                            </small>
-                          ) : null}
-                        </div>
+                  <div className="exercise-list">
+                    {activePlan.exercises.map((exercise) => {
+                      const deltaText = formatDelta(exercise);
 
-                        <h3>{currentSessionExercise.name}</h3>
-                        <p className="session-weight">
-                          {currentSessionExercise.currentWeight.toFixed(1)} kg
-                        </p>
-
-                        <div className="inline-update session-update">
-                          <button
-                            type="button"
-                            className="adjust-button"
-                            onClick={() => changeExerciseByDelta(currentSessionExercise.id, -2.5)}
-                          >
-                            −2.5
-                          </button>
-                          <select
-                            value={currentSessionExercise.currentWeight.toFixed(1)}
-                            onChange={(event) =>
-                              updateExerciseWeight(currentSessionExercise.id, event.target.value)
+                      return (
+                        <article
+                          key={exercise.id}
+                          draggable
+                          onDragStart={() => setDraggingExerciseId(exercise.id)}
+                          onDragEnd={() => {
+                            setDraggingExerciseId(null);
+                            setDragOverExerciseId(null);
+                          }}
+                          onDragOver={(event) => {
+                            event.preventDefault();
+                            if (dragOverExerciseId !== exercise.id) {
+                              setDragOverExerciseId(exercise.id);
                             }
-                            aria-label={`Gewicht für ${currentSessionExercise.name}`}
-                          >
-                            {weightOptions.map((option) => (
-                              <option key={option} value={option}>
-                                {option} kg
-                              </option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            className="adjust-button"
-                            onClick={() => changeExerciseByDelta(currentSessionExercise.id, 2.5)}
-                          >
-                            +2.5
-                          </button>
-                        </div>
-
-                        <div className="quick-deltas">
-                          {[1.25, 2.5, 5].map((delta) => (
-                            <button
-                              key={delta}
-                              type="button"
-                              className="chip-btn"
-                              onClick={() => changeExerciseByDelta(currentSessionExercise.id, delta)}
-                            >
-                              +{delta}
-                            </button>
-                          ))}
-                        </div>
-
-                        <div className="session-actions">
-                          <button
-                            type="button"
-                            className="secondary-btn"
-                            onClick={() => setSessionIndex((previous) => Math.max(0, previous - 1))}
-                          >
-                            Zurück
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setExerciseCompleted(
-                                currentSessionExercise.id,
-                                !currentSessionExercise.completed
-                              )
+                          }}
+                          onDrop={(event) => {
+                            event.preventDefault();
+                            if (draggingExerciseId) {
+                              moveExercise(draggingExerciseId, exercise.id);
                             }
-                          >
-                            {currentSessionExercise.completed ? 'Als offen markieren' : 'Als erledigt'}
-                          </button>
-                          <button
-                            type="button"
-                            className="secondary-btn"
-                            onClick={() =>
-                              setSessionIndex((previous) =>
-                                Math.min(activePlan.exercises.length - 1, previous + 1)
-                              )
-                            }
-                          >
-                            Weiter
-                          </button>
-                        </div>
-                      </article>
-                    ) : (
-                      <p className="empty-text">Keine Übung in diesem Plan.</p>
-                    )
-                  ) : null}
+                            setDraggingExerciseId(null);
+                            setDragOverExerciseId(null);
+                          }}
+                          className={`exercise-card ${exercise.completed ? 'completed' : ''} ${
+                            draggingExerciseId === exercise.id ? 'dragging' : ''
+                          } ${dragOverExerciseId === exercise.id ? 'drag-over' : ''}`}
+                        >
+                          <div>
+                            <p className="drag-hint">⋮⋮ ziehen zum sortieren</p>
+                            <h3>{exercise.name}</h3>
+                            <p className="weight-main">{exercise.currentWeight.toFixed(1)} kg</p>
+                            {deltaText ? <small className="delta-badge">{deltaText}</small> : null}
+                          </div>
 
-                  {exerciseView === 'list' ? (
-                    <div className="exercise-list">
-                      {activePlan.exercises.map((exercise) => {
-                        const deltaText = formatDelta(exercise);
-
-                        return (
-                          <article
-                            key={exercise.id}
-                            className={`exercise-card ${exercise.completed ? 'completed' : ''}`}
-                          >
-                            <div>
-                              <h3>{exercise.name}</h3>
-                              <p className="weight-main">{exercise.currentWeight.toFixed(1)} kg</p>
-                              {deltaText ? <small className="delta-badge">{deltaText}</small> : null}
-                            </div>
-
-                            <div className="inline-update">
-                              <button
-                                type="button"
-                                className="adjust-button"
-                                onClick={() => changeExerciseByDelta(exercise.id, -2.5)}
-                                aria-label={`${exercise.name} um 2.5 kg reduzieren`}
-                              >
-                                −2.5
-                              </button>
-                              <select
-                                value={exercise.currentWeight.toFixed(1)}
-                                onChange={(event) =>
-                                  updateExerciseWeight(exercise.id, event.target.value)
-                                }
-                                aria-label={`Gewicht für ${exercise.name}`}
-                              >
-                                {weightOptions.map((option) => (
-                                  <option key={option} value={option}>
-                                    {option} kg
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                type="button"
-                                className="adjust-button"
-                                onClick={() => changeExerciseByDelta(exercise.id, 2.5)}
-                                aria-label={`${exercise.name} um 2.5 kg erhöhen`}
-                              >
-                                +2.5
-                              </button>
-                            </div>
-
+                          <div className="inline-update">
                             <button
                               type="button"
-                              className="done-btn"
-                              onClick={() => setExerciseCompleted(exercise.id, !exercise.completed)}
+                              className="adjust-button"
+                              onClick={() => changeExerciseByDelta(exercise.id, -2.5)}
+                              aria-label={`${exercise.name} um 2.5 kg reduzieren`}
                             >
-                              {exercise.completed ? 'Erledigt ✓' : 'Erledigen'}
+                              −2.5
                             </button>
-                          </article>
-                        );
-                      })}
+                            <select
+                              value={exercise.currentWeight.toFixed(1)}
+                              onChange={(event) =>
+                                updateExerciseWeight(exercise.id, event.target.value)
+                              }
+                              aria-label={`Gewicht für ${exercise.name}`}
+                            >
+                              {weightOptions.map((option) => (
+                                <option key={option} value={option}>
+                                  {option} kg
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className="adjust-button"
+                              onClick={() => changeExerciseByDelta(exercise.id, 2.5)}
+                              aria-label={`${exercise.name} um 2.5 kg erhöhen`}
+                            >
+                              +2.5
+                            </button>
+                          </div>
 
-                      {activePlan.exercises.length === 0 ? (
-                        <p className="empty-text">
-                          Noch keine Übungen in diesem Plan gespeichert.
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
+                          <button
+                            type="button"
+                            className="done-btn"
+                            onClick={() => setExerciseCompleted(exercise.id, !exercise.completed)}
+                          >
+                            {exercise.completed ? 'Erledigt ✓' : 'Erledigen'}
+                          </button>
+                        </article>
+                      );
+                    })}
+
+                    {activePlan.exercises.length === 0 ? (
+                      <p className="empty-text">
+                        Noch keine Übungen in diesem Plan gespeichert.
+                      </p>
+                    ) : null}
+                  </div>
                 </>
               ) : (
                 <p className="empty-text">
@@ -645,11 +551,11 @@ export default function App() {
                             {plan.name}
                           </option>
                         ))}
-                          {option} kg
+                      </select>
                     </div>
 
                     <form onSubmit={addExercise} className="form-grid">
-                        <button type="submit">Übung hinzufügen</button>
+                      <input
                         value={exerciseName}
                         onChange={(event) => setExerciseName(event.target.value)}
                         placeholder="Neue Übung"
@@ -666,7 +572,7 @@ export default function App() {
                           </option>
                         ))}
                       </select>
-                      <button type="submit">Übung</button>
+                      <button type="submit">Übung hinzufügen</button>
                     </form>
                   </>
                 ) : (
